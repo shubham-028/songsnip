@@ -1,0 +1,1161 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SongSnip</title>
+<style>
+:root{
+  --bg:#0e1014;--panel:#161920;--panel2:#1d212a;--line:#2a303c;--text:#e9ebf1;--muted:#8a91a3;
+  --accent:#1ed760;--accent-d:#17a84b;--seg:rgba(30,215,96,.42);--seg-dim:rgba(30,215,96,.14);
+  --danger:#ff5470;--yt:#ff3d3d;--warn:#ffb020;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+button,input{font:inherit;color:inherit}
+button{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:6px 11px;cursor:pointer;white-space:nowrap}
+button:hover{border-color:#3a4252;background:#232835}
+button.primary{background:var(--accent);border-color:var(--accent);color:#06210f;font-weight:600}
+button.primary:hover{background:var(--accent-d)}
+button.ghost{background:transparent;border-color:transparent}
+button.on{border-color:var(--accent);color:var(--accent)}
+button:disabled{opacity:.45;cursor:default}
+input[type=text],input[type=search]{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 11px;width:100%;outline:none}
+input:focus{border-color:var(--accent)}
+header{display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid var(--line);position:sticky;top:0;background:rgba(14,16,20,.92);backdrop-filter:blur(8px);z-index:20}
+.logo{font-weight:800;font-size:19px;letter-spacing:-.3px}
+.logo span{color:var(--accent)}
+.spacer{flex:1}
+.chip{display:inline-flex;align-items:center;gap:7px;border-radius:999px;padding:5px 12px;font-size:13px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--muted)}
+.dot.ok{background:var(--accent)}.dot.wait{background:var(--warn)}
+main{max-width:1180px;margin:0 auto;padding:20px 20px 100px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr);gap:20px}
+section{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px}
+section h2{margin:0 0 12px;font-size:15px;display:flex;align-items:center;gap:8px}
+section h2 small{color:var(--muted);font-weight:400}
+#editor{grid-column:1/-1}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.muted{color:var(--muted)}
+ul{list-style:none;margin:0;padding:0}
+.result,.item{display:flex;gap:11px;align-items:center;padding:8px;border-radius:10px}
+.result:hover,.item:hover{background:var(--panel2)}
+.result img,.item img{width:46px;height:46px;border-radius:6px;object-fit:cover;background:var(--panel2);flex:none}
+.meta{flex:1;min-width:0}
+.t{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.a{color:var(--muted);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.k{color:var(--muted);font-size:12px;margin-top:3px}
+.item.playing{background:rgba(30,215,96,.08);outline:1px solid rgba(30,215,96,.35)}
+.item .acts{display:flex;gap:4px}
+.item .acts button{padding:5px 8px}
+.badge{display:inline-block;font-size:10px;font-weight:700;border-radius:4px;padding:0 4px;margin-right:3px;vertical-align:1px}
+.badge.spotify{background:var(--accent);color:#04210e}.badge.youtube{background:var(--yt);color:#fff}
+.empty{color:var(--muted);text-align:center;padding:28px 10px}
+/* timelines */
+.tl{position:relative;height:10px;background:var(--panel2);border-radius:5px;margin-top:6px;overflow:visible}
+.tl.mini{height:6px}
+.tl.nosegs{background:var(--seg-dim)}
+.tl .seg{position:absolute;top:0;bottom:0;background:var(--seg);border-radius:4px}
+.tl .pend{position:absolute;top:0;bottom:0;background:repeating-linear-gradient(45deg,rgba(255,176,32,.5) 0 6px,rgba(255,176,32,.25) 6px 12px);border-radius:4px;display:none}
+.tl .ph{position:absolute;top:-4px;bottom:-4px;width:2px;background:#fff;border-radius:2px;display:none;pointer-events:none;box-shadow:0 0 6px rgba(255,255,255,.6)}
+.tl.big{height:46px;border-radius:8px;cursor:pointer;margin:14px 0 6px}
+.tl .grid{position:absolute;inset:0;pointer-events:none;border-radius:inherit;display:none}
+.beatrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--panel2);border-radius:10px;padding:8px 10px;margin:4px 0 12px}
+.beatrow .lbl{font-weight:700}
+.beatrow input[type=number]{width:74px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:5px 8px;color:var(--text);font:inherit}
+#ed-tap.hit{background:var(--accent);color:#06210f;border-color:var(--accent)}
+.onbeat{color:var(--accent);font-size:12px;margin-left:4px}
+.tl.big .seg{border-radius:6px;border:1px solid rgba(30,215,96,.8)}
+.tl.big .ph{top:-6px;bottom:-6px}
+.tl .h{position:absolute;top:-4px;bottom:-4px;width:12px;background:var(--accent);border-radius:4px;cursor:ew-resize;touch-action:none}
+.tl .h[data-side=l]{left:-6px}.tl .h[data-side=r]{right:-6px}
+.tl .h::after{content:"";position:absolute;left:5px;top:30%;bottom:30%;width:2px;background:#06210f;border-radius:1px}
+.ticks{display:flex;justify-content:space-between;color:var(--muted);font-size:11px;font-variant-numeric:tabular-nums}
+/* editor */
+.ed-head{display:flex;gap:14px;align-items:center}
+.ed-head img{width:64px;height:64px;border-radius:8px;object-fit:cover;background:var(--panel2)}
+.ed-head .t{font-size:18px}
+.clock{font-variant-numeric:tabular-nums;font-size:22px;font-weight:700;min-width:150px}
+.clock small{font-size:13px;color:var(--muted);font-weight:400}
+.transport{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0}
+.mark{font-weight:600}
+.mark.start{border-color:var(--warn);color:var(--warn)}
+kbd{background:var(--bg);border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 5px;font-size:11px;color:var(--muted)}
+table.segs{width:100%;border-collapse:collapse;margin-top:8px}
+table.segs th{text-align:left;color:var(--muted);font-weight:500;font-size:12px;padding:4px 6px}
+table.segs td{padding:4px 6px;border-top:1px solid var(--line)}
+table.segs input{width:92px;padding:5px 8px;font-variant-numeric:tabular-nums}
+.hint{background:var(--panel2);border-radius:10px;padding:10px 12px;color:var(--muted);font-size:13px;margin-top:12px}
+/* mini player */
+#bar{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:30;display:flex;align-items:center;gap:4px;
+  max-width:min(440px,calc(100% - 32px));padding:5px 16px 5px 5px;border-radius:999px;background:rgba(29,33,42,.96);
+  border:1px solid var(--line);box-shadow:0 8px 28px rgba(0,0,0,.45);backdrop-filter:blur(8px)}
+#bar button{width:34px;height:34px;border-radius:50%;padding:0;font-size:13px;flex:none;background:transparent;border-color:transparent}
+#bar button:hover{background:var(--panel2)}
+#bar #bp-play{background:var(--text);color:var(--bg);font-size:14px}
+#bar .t{margin-left:8px;font-size:13px;min-width:0}
+/* part numbers on the editor timeline */
+.tl.big .seg .n{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:12px;font-weight:700;color:#eafff1;pointer-events:none;white-space:nowrap}
+table.segs .ord{white-space:nowrap}table.segs .ord button{padding:3px 7px}
+.chain{color:var(--muted);font-size:13px;margin-top:8px;font-variant-numeric:tabular-nums}
+.chain b{color:var(--text)}
+#toast{position:fixed;top:66px;left:50%;transform:translateX(-50%);z-index:50;display:flex;flex-direction:column;gap:6px;align-items:center;pointer-events:none}
+#toast div{background:#262b36;border:1px solid var(--line);padding:8px 14px;border-radius:9px;box-shadow:0 6px 24px rgba(0,0,0,.4);max-width:90vw}
+#toast div.err{border-color:var(--danger);color:#ffd0d8}
+dialog{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:14px;max-width:620px;width:calc(100% - 32px);padding:20px}
+dialog::backdrop{background:rgba(0,0,0,.6)}
+dialog h3{margin-top:0}
+dialog ol{padding-left:20px;color:var(--muted)}dialog ol b,dialog ol code{color:var(--text)}
+code{background:var(--bg);border:1px solid var(--line);border-radius:5px;padding:1px 5px;font-size:12.5px}
+label.field{display:block;margin:12px 0 4px;font-weight:600}
+img[src=""],img:not([src]){visibility:hidden}
+section{min-width:0}
+select{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:7px 9px;color:var(--text);font:inherit}
+.col{display:flex;flex-direction:column;gap:20px;min-width:0}
+.ytboxes{display:flex;gap:8px;flex-wrap:wrap}
+.ytbox[hidden]{display:none!important}
+#yt-card .ytbox{position:relative;flex:1 1 220px;aspect-ratio:16/9;min-height:200px;border-radius:10px;overflow:hidden;background:#000}
+#yt-card .ytbox iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+#yt-card h2 .spacer{flex:1}
+#yt-min{padding:3px 10px;font-size:12px;font-weight:500}
+/* minimized: a small floating box in the corner. YouTube's minimum player size is 200x200, so it can't go smaller */
+#yt-card.mini{position:fixed;right:16px;bottom:76px;z-index:28;padding:8px;width:auto;max-width:calc(100vw - 32px);box-shadow:0 10px 30px rgba(0,0,0,.5)}
+#yt-card.mini h2{font-size:12px;margin:0 0 6px;gap:6px}
+#yt-card.mini h2 .lbl,#yt-card.mini .note{display:none}
+#yt-card.mini #yt-title{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;color:var(--text)}
+#yt-card.mini .ytboxes{gap:6px;flex-wrap:nowrap}
+#yt-card.mini #yt-title{max-width:150px}
+#yt-card.mini .ytbox{flex:0 0 200px;width:200px;height:200px;min-height:200px;aspect-ratio:auto;border-radius:6px}
+/* controls under the video */
+.ytctl{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:10px}
+.ytctl button{width:40px;height:40px;border-radius:50%;padding:0;font-size:13px;flex:none}
+.ytctl .pp{width:46px;height:46px;background:var(--text);color:var(--bg);border:none;font-size:16px}
+.ytctl .pp:hover{background:#fff}
+.yttime{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;text-align:center;margin-top:4px}
+#yt-card.mini .ytctl{gap:3px;margin-top:6px}
+#yt-card.mini .ytctl button{width:34px;height:34px;font-size:11px}
+#yt-card.mini .ytctl .pp{width:38px;height:38px;font-size:13px}
+.segwrap{overflow-x:auto}
+@media (max-width:600px){.ed-head{flex-wrap:wrap}.ed-head .meta{min-width:60%}.clock{min-width:0;width:100%}
+  table.segs input{width:74px}table.segs .pvl{display:none}table.segs td,table.segs th{padding:4px 3px}
+  .item .acts{flex-wrap:wrap;justify-content:flex-end;max-width:120px}.item .acts button[data-act=up],.item .acts button[data-act=down]{display:none}}
+@media (max-width:900px){main{grid-template-columns:1fr;padding:14px 16px 100px}header{padding:10px 16px;flex-wrap:wrap}}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">Song<span>Snip</span></div>
+  <div class="spacer"></div>
+  <span class="chip" style="border:1px solid var(--line)"><span class="dot ok"></span>YouTube</span>
+  <button class="chip" id="sp-chip"><span class="dot" id="sp-dot"></span><span id="sp-label">Connect Spotify</span></button>
+  <button class="ghost" id="open-settings" title="Settings">⚙ Settings</button>
+</header>
+
+<main>
+  <section id="editor" hidden>
+    <div class="ed-head">
+      <img id="ed-art" alt="">
+      <div class="meta"><div class="t" id="ed-title"></div><div class="a" id="ed-artist"></div></div>
+      <button id="ed-done" class="primary">Done</button>
+    </div>
+    <div class="tl big" id="ed-tl"></div>
+    <div class="ticks"><span>0:00</span><span id="ed-dur">–:––</span></div>
+    <div class="transport">
+      <div class="clock" id="ed-clock">0:00.0 <small>/ –:––</small></div>
+      <button id="ed-back" title="Back 5s (←)">⟲ 5s</button>
+      <button id="ed-play" style="min-width:84px">▶ Play</button>
+      <button id="ed-fwd" title="Forward 5s (→)">5s ⟳</button>
+      <span class="spacer"></span>
+      <button class="mark" id="ed-mstart">＋ Start a part <kbd>[</kbd></button>
+      <button class="mark" id="ed-mend">End part <kbd>]</kbd></button>
+    </div>
+    <div class="beatrow">
+      <span class="lbl">🥁 Beat</span>
+      <button id="ed-tap" title="While the song plays, tap on every beat, starting on a 1">Tap along <kbd>T</kbd></button>
+      <span id="ed-bpm" class="muted"></span>
+      <span class="row" id="ed-beat-tools" hidden style="gap:6px">
+        <input type="number" id="ed-bpm-in" min="40" max="240" step="0.1" title="Tempo in beats per minute"> <span class="muted">BPM</span>
+        <button id="ed-half" title="Half the tempo">½×</button><button id="ed-double" title="Double the tempo">2×</button>
+        <button id="ed-shift" title="If the bar lines sit on the wrong beat, move them by one beat">Shift bar line</button>
+        <label class="row muted" style="gap:5px"><input type="checkbox" id="ed-snapnew"> Snap to beat</label>
+        <button id="ed-beat-clear" class="ghost" title="Remove the beat for this song">Clear</button>
+      </span>
+      <button id="ed-perfect" style="margin-left:auto" class="primary" title="Move every part's start and end onto the nearest bar line">✨ Make perfect joins</button>
+    </div>
+    <div class="row">
+      <h2 style="margin:6px 0 0">Parts you keep <small id="ed-kept"></small></h2>
+      <span class="spacer"></span>
+      <label class="row muted" style="gap:6px"><input type="checkbox" id="ed-fade"> Blend between parts</label>
+      <button id="ed-preview">▶ Play joined parts</button>
+    </div>
+    <div class="segwrap"><table class="segs"><thead><tr><th>Order</th><th>Start</th><th>End</th><th>Length</th><th></th></tr></thead><tbody id="ed-segs"></tbody></table></div>
+    <div class="chain" id="ed-chain"></div>
+    <div class="hint">Play the song. Press <kbd>[</kbd> where a part you like starts and <kbd>]</kbd> where it ends. Repeat that for every part you want. SongSnip plays all your parts one after another as a single track, blending each into the next, and skips everything in between. Use ↑ ↓ to change the order, for example to put the chorus first. To fine-tune a part, drag its green handles or type times such as <code>1:23.5</code>. If you don't mark any parts, the whole song plays.<br><br><b>For seamless joins:</b> while the song plays, press <kbd>T</kbd> on every beat for a few seconds, starting on a "1". Bar lines then appear on the timeline. Click <b>✨ Make perfect joins</b> to move every part onto the bar lines, so the beat carries on smoothly into the next part and into the next song. While snapping is on, new parts and dragged handles snap to the bar lines too. Hold <kbd>Alt</kbd> while dragging to place a handle freely.</div>
+  </section>
+
+  <div class="col">
+  <section id="yt-card" hidden>
+    <h2><span class="lbl">Playing from YouTube</span> <small id="yt-title"></small><span class="spacer"></span><button id="yt-min" title="Minimize the video">▁ Minimize</button></h2>
+    <div class="ytboxes"><div class="ytbox" id="ytbox-a" hidden><div id="yt-player-a"></div></div><div class="ytbox" id="ytbox-b" hidden><div id="yt-player-b"></div></div></div>
+    <div class="ytctl">
+      <button data-yc="prev" title="Previous song">⏮</button>
+      <button data-yc="back" title="Back 5 seconds (←)">−5</button>
+      <button data-yc="play" class="pp" title="Play/Pause (Space)">▶</button>
+      <button data-yc="fwd" title="Forward 5 seconds (→)">+5</button>
+      <button data-yc="next" title="Next song (N)">⏭</button>
+    </div>
+    <div class="yttime" id="yt-time"></div>
+    <p class="muted note" style="margin:8px 0 0;font-size:12px">YouTube requires the video to stay visible while it plays. The card goes away when a Spotify song plays.</p>
+  </section>
+  <section id="add">
+    <h2>Add songs</h2>
+    <form id="search-form" class="row" style="flex-wrap:nowrap">
+      <input type="search" id="q" autocomplete="off">
+      <button class="primary" type="submit">Go</button>
+    </form>
+    <ul id="results" style="margin-top:10px"></ul>
+  </section>
+  </div>
+
+  <section id="lib">
+    <h2>Your snips <small id="lib-stats"></small></h2>
+    <div class="row" style="margin-bottom:8px">
+      <button class="primary" id="play-all">▶ Play all snips</button>
+      <button id="tg-shuffle" title="Shuffle">⤮ Shuffle</button>
+      <button id="tg-loop" title="Repeat the whole list">↻ Repeat</button>
+      <button id="tg-blend" title="Blend each song into the next, like Apple Music">🔀 Blend</button>
+      <button id="smart-order" title="Order songs so the tempo flows smoothly from one to the next">✨ Smart order</button>
+      <span class="row" style="gap:0;margin-left:auto;flex-wrap:nowrap">
+        <button class="ghost" id="export" title="Download a backup of your snips">Export</button>
+        <button class="ghost" id="import" title="Load snips from a backup file">Import</button>
+      </span>
+      <input type="file" id="import-file" accept=".json,application/json" hidden>
+    </div>
+    <ul id="lib-list"></ul>
+  </section>
+</main>
+
+<div id="bar">
+  <button id="bp-prev" title="Previous">⏮</button>
+  <button id="bp-play" title="Play/Pause (Space)">▶</button>
+  <button id="bp-next" title="Next (N)">⏭</button>
+  <div class="t" id="bp-title">Nothing playing</div>
+</div>
+
+<div id="toast"></div>
+
+<dialog id="settings">
+  <h3>Connect your Spotify account</h3>
+  <p class="muted">Spotify only plays full songs inside apps that have a free developer key, called a Client ID. You only need to set this up once.</p>
+  <ol>
+    <li>Go to <a href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener" style="color:var(--accent)">developer.spotify.com/dashboard</a>, log in, and click <b>Create app</b>. Any name and description will do.</li>
+    <li>Under <b>Redirect URIs</b>, add exactly this:<br><code id="redirect-uri"></code> <button type="button" id="copy-uri" style="padding:2px 8px;font-size:12px">Copy</button></li>
+    <li>Under <b>Which API/SDKs</b>, tick <b>Web API</b> and <b>Web Playback SDK</b>, then save.</li>
+    <li>Open the app's <b>Settings → User Management</b> and add the email address of your Spotify account.</li>
+    <li>Copy the <b>Client ID</b> and paste it below.</li>
+  </ol>
+  <p id="localhost-warn" class="hint" style="color:var(--warn)" hidden>Spotify no longer accepts <code>localhost</code> in redirect addresses. Open this app at <a id="loopback-link" style="color:var(--warn)"></a> instead.</p>
+  <p class="hint">You need <b>Spotify Premium</b> to play songs in the browser. YouTube links work without an account.</p>
+  <label class="field" for="client-id">Spotify Client ID</label>
+  <input type="text" id="client-id" placeholder="e.g. 3f1c2b…" autocomplete="off" spellcheck="false">
+  <label class="field" for="fade-ms">Fade at the start and end of each song: <span id="fade-val"></span></label>
+  <input type="range" id="fade-ms" min="200" max="4000" step="100" style="width:100%">
+  <p class="muted" style="margin:2px 0 0;font-size:12px">Songs with a beat set use a fade timed to the beat instead.</p>
+  <label class="field" for="lead-ms">Join timing: jump <span id="lead-val"></span> early</label>
+  <input type="range" id="lead-ms" min="0" max="400" step="10" style="width:100%">
+  <p class="muted" style="margin:2px 0 0;font-size:12px">Spotify and YouTube take a moment to jump to a new spot. If joins between parts land slightly after the beat, raise this. If they land before it, lower it.</p>
+  <label class="field" for="blend-sec">Blend songs together: <span id="blend-val"></span></label>
+  <input type="range" id="blend-sec" min="1" max="12" step="1" style="width:100%">
+  <p class="muted" style="margin:2px 0 0;font-size:12px">Like Apple Music: the end of one song fades out while the next one fades in, over this many seconds. Only the parts you kept are used, never the cut-out bits. Spotify plays only one song at a time per account, so two Spotify songs can't overlap. Between them, the first fades out and the next fades in straight after. When either song is from YouTube, they overlap fully. Turn blending on or off with <b>🔀 Blend</b> in your song list.</p>
+  <label class="field" for="part-blend-sec">Blend between parts of a song: <span id="part-blend-val"></span></label>
+  <input type="range" id="part-blend-sec" min="0.5" max="6" step="0.5" style="width:100%">
+  <p class="muted" style="margin:2px 0 0;font-size:12px">How long one part takes to melt into the next. On YouTube songs, the two parts overlap and crossfade, kept on the beat when a beat is set. On Spotify songs, the part fades out and the next one fades in, because Spotify can't play two spots of a song at once. You can switch this off for one song by unticking <b>Blend between parts</b> in its trimmer.</p>
+  <div class="row" style="margin-top:18px;justify-content:flex-end">
+    <button type="button" id="settings-close">Close</button>
+    <button type="button" class="primary" id="settings-connect">Save &amp; connect Spotify</button>
+  </div>
+</dialog>
+
+<script>
+"use strict";
+/* ---------- utilities ---------- */
+const $ = s => document.querySelector(s);
+const store = {
+  get(k, d){ try{ const v = localStorage.getItem('songsnip.'+k); return v == null ? d : JSON.parse(v); }catch{ return d; } },
+  set(k, v){ try{ localStorage.setItem('songsnip.'+k, JSON.stringify(v)); }catch{} },
+  del(k){ try{ localStorage.removeItem('songsnip.'+k); }catch{} }
+};
+let library = store.get('library', []);
+const restoredYT = store.get('youtube_backup', []);
+if (restoredYT.length){ library = library.concat(restoredYT.filter(t => !library.some(x => x.id === t.id))); store.set('library', library); store.del('youtube_backup'); }
+const settings = Object.assign({clientId:'', loop:true, shuffle:false, fadeMs:1200, ytMini:false, leadMs:120, blendOn:true, blendSec:6, partBlendSec:2}, store.get('settings', {}));
+const saveLib = () => store.set('library', library);
+const saveSettings = () => store.set('settings', settings);
+const uid = () => Math.random().toString(36).slice(2, 10);
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function fmt(ms, dec = true){
+  if (ms == null || !isFinite(ms)) return '–:––';
+  ms = Math.max(0, ms); const t = ms / 1000, m = Math.floor(t / 60), s = t - m * 60;
+  return dec ? m + ':' + s.toFixed(1).padStart(4, '0') : m + ':' + String(Math.floor(s)).padStart(2, '0');
+}
+function parseTime(str){
+  str = String(str).trim(); if (!str) return NaN;
+  const parts = str.split(':').map(Number); if (parts.some(isNaN)) return NaN;
+  return Math.round(parts.reduce((a, p) => a * 60 + p, 0) * 1000);
+}
+function toast(msg, err){
+  const d = document.createElement('div'); d.textContent = msg; if (err) d.className = 'err';
+  $('#toast').appendChild(d); setTimeout(() => d.remove(), err ? 6000 : 3000);
+  if (err) console.warn(msg);
+}
+function waitFor(fn, timeout = 8000){
+  return new Promise(res => { const t0 = performance.now(); const iv = setInterval(() => {
+    let ok = false; try { ok = fn(); } catch {}
+    if (ok){ clearInterval(iv); res(true); } else if (performance.now() - t0 > timeout){ clearInterval(iv); res(false); }
+  }, 100); });
+}
+function randStr(n){ const a = new Uint8Array(n); crypto.getRandomValues(a); const c = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'; return Array.from(a, x => c[x % c.length]).join(''); }
+const b64url = bytes => btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+async function pkceChallenge(v){
+  const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(v));
+  return btoa(String.fromCharCode(...new Uint8Array(d))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+function parseLink(s){
+  s = s.trim();
+  let m = s.match(/(?:open\.spotify\.com\/(?:intl-[a-z-]+\/)?track\/|spotify:track:)([A-Za-z0-9]{22})/);
+  if (m) return {source:'spotify', id:m[1]};
+  m = s.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?(?:[^#]*&)?v=|shorts\/|embed\/|live\/))([\w-]{11})/);
+  if (m) return {source:'youtube', id:m[1]};
+  return null;
+}
+
+/* ---------- Spotify auth + Web Playback SDK ---------- */
+const SP = {
+  scopes: 'streaming user-read-email user-read-private user-read-playback-state user-modify-playback-state',
+  tokens: store.get('sp_tokens', null),
+  player: null, deviceId: null, ready: false, sdkLoading: false, state: null, stateAt: 0, refreshing: null, activated: false,
+  redirect(){ return location.origin + location.pathname; },
+  async login(){
+    if (!settings.clientId){ openSettings(); toast('Add your Spotify Client ID first', true); return; }
+    const verifier = randStr(64); store.set('sp_verifier', verifier);
+    const p = new URLSearchParams({response_type:'code', client_id:settings.clientId, scope:this.scopes,
+      code_challenge_method:'S256', code_challenge: await pkceChallenge(verifier), redirect_uri:this.redirect()});
+    location.href = 'https://accounts.spotify.com/authorize?' + p;
+  },
+  async handleRedirect(){
+    const q = new URLSearchParams(location.search);
+    if (!q.has('code') && !q.has('error')) return;
+    history.replaceState(null, '', this.redirect());
+    if (q.get('error')){ toast('Spotify login was cancelled or failed: ' + q.get('error'), true); return; }
+    try {
+      await this.tokenRequest(new URLSearchParams({grant_type:'authorization_code', code:q.get('code'),
+        redirect_uri:this.redirect(), client_id:settings.clientId, code_verifier:store.get('sp_verifier', '')}));
+      toast('Spotify connected');
+    } catch (e){ toast('Spotify login failed: ' + e.message, true); }
+  },
+  async tokenRequest(body){
+    const r = await fetch('https://accounts.spotify.com/api/token', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body});
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error_description || j.error || ('HTTP ' + r.status));
+    this.tokens = {access:j.access_token, refresh:j.refresh_token || this.tokens?.refresh, exp:Date.now() + (j.expires_in - 60) * 1000};
+    store.set('sp_tokens', this.tokens);
+  },
+  async token(){
+    if (!this.tokens) throw new Error('Spotify is not connected');
+    if (Date.now() > this.tokens.exp){
+      this.refreshing ??= this.tokenRequest(new URLSearchParams({grant_type:'refresh_token', refresh_token:this.tokens.refresh, client_id:settings.clientId}))
+        .catch(e => { this.logout(); throw new Error('Spotify session expired. Please connect again.'); })
+        .finally(() => { this.refreshing = null; });
+      await this.refreshing;
+    }
+    return this.tokens.access;
+  },
+  logout(){
+    this.tokens = null; store.del('sp_tokens');
+    try { this.player?.disconnect(); } catch {}
+    this.player = null; this.deviceId = null; this.ready = false; renderConn(); renderSearchHint();
+  },
+  async api(path, opts = {}){
+    const t = await this.token();
+    const r = await fetch('https://api.spotify.com/v1' + path, {...opts, headers:{Authorization:'Bearer ' + t, 'Content-Type':'application/json'}});
+    if (r.status === 204 || r.status === 202) return null;
+    const txt = await r.text(); let j = null; try { j = txt ? JSON.parse(txt) : null; } catch {}
+    if (!r.ok){
+      if (r.status === 401){ this.tokens.exp = 0; store.set('sp_tokens', this.tokens); }
+      if (r.status === 403 && /premium/i.test(j?.error?.message || '')) throw new Error('Spotify Premium is required for playback');
+      throw new Error(j?.error?.message || ('Spotify API error ' + r.status));
+    }
+    return j;
+  },
+  initSDK(){
+    if (this.sdkLoading || !this.tokens) return; this.sdkLoading = true; renderConn();
+    window.onSpotifyWebPlaybackSDKReady = () => {
+      const p = new Spotify.Player({name:'SongSnip', volume:Player.volume,
+        getOAuthToken: cb => this.token().then(cb).catch(e => toast(e.message, true))});
+      p.addListener('ready', ({device_id}) => { this.deviceId = device_id; this.ready = true; renderConn(); });
+      p.addListener('not_ready', () => { this.ready = false; renderConn(); });
+      p.addListener('initialization_error', ({message}) => toast('Spotify player could not start: ' + message, true));
+      p.addListener('authentication_error', () => { toast('Spotify login expired. Please connect again.', true); this.logout(); });
+      p.addListener('account_error', () => toast('You need Spotify Premium to play songs in the browser.', true));
+      p.addListener('playback_error', ({message}) => toast('Spotify playback: ' + message, true));
+      p.addListener('player_state_changed', s => { if (s){ this.state = s; this.stateAt = performance.now(); } });
+      p.connect(); this.player = p;
+    };
+    const s = document.createElement('script'); s.src = 'https://sdk.scdn.co/spotify-player.js';
+    s.onerror = () => toast('Could not load the Spotify player script', true);
+    document.head.appendChild(s);
+  },
+  activate(){ if (this.player && !this.activated){ this.activated = true; this.player.activateElement?.(); } }
+};
+
+const SpotifyEngine = {
+  async load(track, startMs, silent){
+    if (!SP.tokens) throw new Error('Connect Spotify to play this song');
+    if (!SP.ready){ SP.initSDK(); if (!await waitFor(() => SP.ready, 10000)) throw new Error('The Spotify player is not ready yet. Try again in a moment.'); }
+    SP.activate();
+    if (silent) await SP.player?.setVolume(0.001);
+    await SP.api('/me/player/play?device_id=' + encodeURIComponent(SP.deviceId), {method:'PUT', body:JSON.stringify({uris:[track.ref], position_ms:Math.round(startMs)})});
+    const ok = await waitFor(() => { const c = SP.state?.track_window?.current_track;
+      return c && (c.uri === track.ref || c.linked_from?.uri === track.ref || c.id === track.ref.split(':').pop()) && !SP.state.loading; }, 10000);
+    if (!ok) throw new Error('Spotify did not start playing. Check that your account is Premium.');
+  },
+  play(){ SP.activate(); return SP.player?.resume(); },
+  pause(){ return SP.player?.pause(); },
+  seek(ms){ ms = Math.max(0, Math.round(ms)); if (SP.state){ SP.state = {...SP.state, position:ms}; SP.stateAt = performance.now(); } return SP.player?.seek(ms); },
+  position(){ const s = SP.state; if (!s) return 0; return s.paused ? s.position : s.position + (performance.now() - SP.stateAt); },
+  paused(){ return !SP.state || SP.state.paused; },
+  duration(){ return SP.state?.duration || 0; },
+  setVolume(v){ SP.player?.setVolume(clamp(v, 0.001, 1)); },
+  stop(){ try { SP.player?.pause(); } catch {} },
+  sync(){ SP.player?.getCurrentState().then(s => { if (s){ SP.state = s; SP.stateAt = performance.now(); } }).catch(() => {}); }
+};
+
+/* ---------- YouTube IFrame players (shown in the page card, never hidden) ---------- */
+// Two players, so one YouTube song can blend into another. Each one is visible while it plays (YouTube's rules).
+let ytApiP = null;
+const ytApi = () => ytApiP ??= new Promise((res, rej) => {
+  window.onYouTubeIframeAPIReady = res;
+  const sc = document.createElement('script'); sc.src = 'https://www.youtube.com/iframe_api';
+  sc.onerror = () => { ytApiP = null; rej(new Error('Could not load the YouTube player')); };
+  document.head.appendChild(sc);
+});
+function makeYouTubeEngine(slot){
+  const e = {
+    slot, player: null, readyP: null,
+    init(){
+      return this.readyP ??= ytApi().then(() => new Promise(res => {
+        this.player = new YT.Player('yt-player-' + slot, {width:'100%', height:'100%',
+          playerVars:{playsinline:1, rel:0, origin:location.origin},
+          events:{
+            onReady: () => res(),
+            onStateChange: ev => { if (ev.data === 0 && Player.engine === e) Player.onEnded(); },
+            onError: ev => { if (Player.engine === e) toast('YouTube error ' + ev.data + ([101, 150].includes(ev.data) ? ': the owner does not allow this video to play on other sites.' : ''), true); }
+          }});
+      })).catch(err => { this.readyP = null; throw err; });
+    },
+    async load(track, startMs, silent){
+      showYT(e);
+      await this.init();
+      if (silent) this.player.setVolume(0);
+      this.player.loadVideoById({videoId:track.ref, startSeconds:startMs / 1000});
+      const ok = await waitFor(() => this.player.getVideoData()?.video_id === track.ref && [1, 2].includes(this.player.getPlayerState()), 12000);
+      if (!ok) throw new Error('The YouTube video did not start. Press play on the video, or try again.');
+    },
+    play(){ this.player?.playVideo(); },
+    pause(){ this.player?.pauseVideo(); },
+    seek(ms){ this.player?.seekTo(Math.max(0, ms) / 1000, true); },
+    position(){ return (this.player?.getCurrentTime?.() || 0) * 1000; },
+    paused(){ const st = this.player?.getPlayerState?.(); return st !== 1 && st !== 3; },
+    duration(){ return (this.player?.getDuration?.() || 0) * 1000; },
+    setVolume(v){ this.player?.setVolume?.(Math.round(clamp(v, 0, 1) * 100)); },
+    stop(){ try { this.player?.pauseVideo(); } catch {} },
+    sync(){}
+  };
+  return e;
+}
+const YTA = makeYouTubeEngine('a'), YTB = makeYouTubeEngine('b');
+const isYT = eng => eng === YTA || eng === YTB;
+// show the card (and each video box) only while that YouTube player is in use
+function showYT(loading){
+  const live = [Player.engine, Player.out?.engine, loading].filter(isYT);
+  $('#yt-card').hidden = !live.length;
+  for (const e of [YTA, YTB]) $('#ytbox-' + e.slot).hidden = !live.includes(e);
+  const t = isYT(Player.engine) ? Player.track : Player.out?.track;
+  $('#yt-title').textContent = t ? (settings.ytMini ? t.title : '· ' + t.title) : '';
+}
+// Minimize only changes CSS on the card. Moving the video's frame elsewhere in the page would reload it and restart the song.
+function renderYTSize(){
+  const mini = settings.ytMini, card = $('#yt-card');
+  card.classList.toggle('mini', mini);
+  $('#yt-min').textContent = mini ? '⤢' : '▁ Minimize';
+  $('#yt-min').title = mini ? 'Make the video bigger again' : 'Minimize the video';
+  showYT();
+}
+$('#yt-min').onclick = () => { settings.ytMini = !settings.ytMini; saveSettings(); renderYTSize(); };
+
+/* ---------- segments ---------- */
+const durOf = t => t ? (t.durationMs || (Player.track === t ? Player.engine?.duration() : 0) || 0) : 0;
+function normalize(t){
+  const d = t.durationMs || Infinity;
+  t.segments = (t.segments || []).filter(x => isFinite(x.start) && isFinite(x.end))
+    .map(x => ({start:clamp(x.start, 0, d), end:clamp(x.end, 0, d)})).filter(x => x.end - x.start >= 300);
+}
+function playSegs(t){
+  const d = durOf(t) || Infinity, endCap = d - 350;
+  let s = (t.segments || []).filter(x => x.end > x.start && x.start < endCap).map(x => ({start:x.start, end:Math.min(x.end, endCap)}));
+  return s.length ? s : [{start:0, end:endCap}];
+}
+/* ---------- beat grid (from tapping along) ---------- */
+// t.beat = {bpm, anchor}: anchor is the time (ms) of a "1", so bar lines sit at anchor + n * barMs
+const beatLen = t => 60000 / t.beat.bpm;
+const barLen = t => beatLen(t) * 4;
+function snapBar(t, ms){
+  const b = barLen(t), a = t.beat.anchor;
+  return clamp(a + Math.round((ms - a) / b) * b, 0, durOf(t) || Infinity);
+}
+const onBar = (t, ms) => { if (!t.beat) return false; const b = barLen(t), r = (((ms - t.beat.anchor) % b) + b) % b; return Math.min(r, b - r) < 40; };
+const snapping = t => !!t.beat && t.snap !== false;
+const keptMs = t => (t.segments || []).reduce((a, s) => a + Math.max(0, s.end - s.start), 0);
+
+/* ---------- playback controller ---------- */
+const JOIN_MS = 220;      // fade length at the join between two parts
+const Player = {
+  mode: 'idle', track: null, engine: null, segs: [], segIdx: 0, busy: false, hold: 0,
+  volume: 0.85, lastVol: -1, preview: null, queue: [], qIdx: 0, loopQueue: true, failures: 0,
+  out: null,                                   // the song fading out during a blend: {engine, track, end, rampLen}
+  loadEst: {spotify:1200, youtube:1500},       // how long each service takes to start a song (learned as you listen)
+  fadeInMs: 0, pendingFadeIn: 0,
+  engineFor(t, avoid){
+    if (t.source !== 'youtube') return SpotifyEngine;
+    if (avoid) return avoid === YTA ? YTB : YTA;          // blending: use the other YouTube player
+    return isYT(this.engine) ? this.engine : YTA;
+  },
+  setVol(v){ if (Math.abs(v - this.lastVol) > 0.01){ this.lastVol = v; this.engine?.setVolume(v); } },
+  async open(track, mode, startMs, opt = {}){
+    const eng = this.engineFor(track, opt.avoid);
+    if (!opt.keepOld){ this.endBlend(true); if (this.engine && this.engine !== eng) this.engine.stop(); }
+    this.busy = true; this.engine = eng; this.track = track; this.mode = mode; this.preview = null; this.lastVol = -1;
+    this.fadeInMs = this.pendingFadeIn; this.pendingFadeIn = 0;
+    this.jumpKey = this.blendKey = null; clearTimeout(this.jumpTimer);
+    showYT(); renderNow(); renderLibrary();
+    try {
+      await eng.load(track, startMs, opt.silent);
+      this.learnDuration();
+      if (opt.silent) this.lastVol = 0;
+      else this.setVol(mode === 'queue' && (track.fade || this.fadeInMs) ? 0.05 : this.volume);
+      this.failures = 0; return true;
+    } catch (e){ toast(e.message, true); return false; }
+    finally { this.busy = false; this.hold = performance.now() + 400; showYT(); renderNow(); }
+  },
+  // the next position in the play order, or -1 at the end of a list that doesn't repeat
+  nextQ(){ if (this.mode !== 'queue') return -1; let q = this.qIdx + 1; if (q >= this.queue.length){ if (!this.loopQueue) return -1; q = 0; } return q; },
+  // Blend: start the next song quietly on a second player while this one plays its last seconds, then crossfade.
+  async startBlend(nq){
+    const seg = this.segs[this.segs.length - 1];
+    const o = this.out = {engine:this.engine, track:this.track, end:seg.end, rampLen:null};
+    this.qIdx = nq; const t = library[this.queue[nq]];
+    this.segs = playSegs(t); this.segIdx = 0;
+    const t0 = performance.now();
+    const ok = await this.open(t, 'queue', this.segs[0].start, {keepOld:true, avoid:o.engine, silent:true});
+    if (o.cancelled) return;                                   // you skipped or paused meanwhile
+    if (!ok){                                                  // next song failed: move on after this one
+      if (o.done) this.next(); else o.onDone = () => this.next();
+      return;
+    }
+    this.loadEst[t.source] = Math.round(this.loadEst[t.source] * 0.6 + (performance.now() - t0) * 0.4);
+    if (o.done) return;                                        // the old song already finished
+    o.rampLen = Math.max(400, o.end - o.engine.position());
+  },
+  // Blend between two parts of the same YouTube song: start the next part quietly on the second player and crossfade.
+  async startPartBlend(ms){
+    const t = this.track, seg = this.segs[this.segIdx];
+    if (t.beat){ const b = beatLen(t); ms = Math.max(b, Math.round(ms / b) * b); }   // a whole number of beats keeps both parts on the beat
+    const o = this.out = {engine:this.engine, track:t, end:seg.end, rampLen:null};
+    const idx = ++this.segIdx, next = this.segs[idx], t0 = performance.now();
+    const ok = await this.open(t, 'queue', next.start, {keepOld:true, avoid:o.engine, silent:true});
+    if (o.cancelled) return;
+    if (ok && !o.done){
+      this.loadEst.youtube = Math.round(this.loadEst.youtube * 0.6 + (performance.now() - t0) * 0.4);
+      // line the two up: when the crossfade starts (ms before the old part ends), the new part is exactly at its start
+      const r = o.end - o.engine.position();
+      this.seek(Math.max(0, next.start + ms - r));
+      o.rampLen = ms;
+    } else if (!ok){
+      // the second player couldn't start: go back to a plain fade at the join on the first player
+      this.out = null; this.engine = o.engine; this.lastVol = -1; showYT();
+      if (o.done){ this.seek(next.start); o.engine.play(); } else this.segIdx = idx - 1;
+    }
+  },
+  driveBlend(){
+    const o = this.out, op = o.engine.position();
+    if (op >= o.end - 40){ this.endBlend(); return; }
+    if (o.rampLen == null) return;                             // next song still loading: keep playing as normal
+    const g = clamp((o.end - op) / o.rampLen, 0, 1);           // 1 → 0 across the blend
+    o.engine.setVolume(this.volume * Math.sin(g * Math.PI / 2));          // equal-power crossfade
+    if (!this.busy) this.setVol(this.volume * Math.sin((1 - g) * Math.PI / 2));
+  },
+  endBlend(cancel){
+    const o = this.out; if (!o) return; this.out = null; o.cancelled = !!cancel; o.done = !cancel;
+    if (o.engine !== this.engine) o.engine.stop();
+    if (!cancel && this.engine && !this.busy) this.setVol(this.volume);
+    showYT();
+    if (!cancel && o.onDone) o.onDone();
+  },
+  async playList(order, startPos = 0, loop = settings.loop){
+    if (!order.length) return;
+    this.queue = order; this.qIdx = startPos; this.loopQueue = loop; this.failures = 0;
+    await this.playCurrent();
+  },
+  playFrom(libIdx){
+    let order = library.map((_, i) => i);
+    if (settings.shuffle){ order = order.filter(i => i !== libIdx); for (let i = order.length - 1; i > 0; i--){ const j = Math.floor(Math.random() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; } order.unshift(libIdx); return this.playList(order, 0); }
+    return this.playList(order, libIdx);
+  },
+  async playCurrent(){
+    const t = library[this.queue[this.qIdx]];
+    if (!t){ this.stop(); return; }
+    this.segs = playSegs(t); this.segIdx = 0;
+    const ok = await this.open(t, 'queue', this.segs[0].start);
+    if (!ok && ++this.failures < Math.min(this.queue.length, 4)) setTimeout(() => this.next(), 800);
+  },
+  async next(){
+    if (this.mode !== 'queue'){ const i = library.indexOf(this.track); return library.length ? this.playFrom((i + 1) % library.length) : null; }
+    this.qIdx++;
+    if (this.qIdx >= this.queue.length){ if (!this.loopQueue){ this.engine?.pause(); this.mode = 'idle'; renderNow(); renderLibrary(); return; } this.qIdx = 0; }
+    await this.playCurrent();
+  },
+  async prev(){
+    if (this.mode !== 'queue'){ const i = library.indexOf(this.track); return library.length ? this.playFrom(Math.max(0, i - 1)) : null; }
+    if (this.engine && this.engine.position() - this.segs[this.segIdx].start > 3000 || this.segIdx > 0){ this.segIdx = 0; this.seek(this.segs[0].start); return; }
+    this.qIdx = (this.qIdx - 1 + this.queue.length) % this.queue.length; await this.playCurrent();
+  },
+  seek(ms){ this.hold = performance.now() + 350; this.engine?.seek(ms); },
+  // ±5s jumps. While playing your snips, they stay inside the current part so you never land in a cut-out bit.
+  nudge(d){
+    if (!this.engine || this.busy) return;
+    const pos = this.engine.position();
+    if (this.mode !== 'queue') return this.seek(pos + d);
+    const seg = this.segs[this.segIdx];
+    if (d < 0) this.seek(Math.max(seg.start, pos + d));
+    else if (pos + d >= seg.end) this.advanceSeg();
+    else this.seek(pos + d);
+  },
+  // time within the snip (all parts joined) when playing snips, otherwise within the song
+  clock(pos){
+    if (this.mode !== 'queue' || !this.segs.length) return [pos, durOf(this.track)];
+    const segs = this.segs, i = this.segIdx, total = segs.reduce((a, s) => a + s.end - s.start, 0);
+    const done = segs.slice(0, i).reduce((a, s) => a + s.end - s.start, 0) + clamp(pos - segs[i].start, 0, segs[i].end - segs[i].start);
+    return [done, total];
+  },
+  toggle(){
+    if (!this.engine || !this.track){ if (library.length) this.playFrom(0); else toast('Add a song first'); return; }
+    if (this.mode === 'idle') this.mode = 'queue';
+    this.endBlend(true);
+    if (this.engine.paused()) this.engine.play(); else this.engine.pause();
+  },
+  stop(){ this.endBlend(true); this.engine?.stop(); this.mode = 'idle'; renderNow(); renderLibrary(); },
+  // YouTube only tells us a video's length once it has loaded
+  learnDuration(){
+    const t = this.track; if (!t || t.source !== 'youtube') return;
+    const d = this.engine.duration(); if (!d || Math.abs((t.durationMs || 0) - d) < 1500) return;
+    t.durationMs = d; saveLib(); if (this.mode === 'queue') this.segs = playSegs(t);
+    renderLibrary(); if (editing === t) renderEditor();
+  },
+  lastEnded: 0,
+  onEnded(){ const n = performance.now(); if (this.mode === 'queue' && !this.busy && n - this.lastEnded > 2000){ this.lastEnded = n; this.next(); } },
+  advanceSeg(){
+    this.jumpKey = null; clearTimeout(this.jumpTimer);
+    this.segIdx++;
+    if (this.segIdx < this.segs.length){ if (this.track.fade) this.setVol(0.03); this.seek(this.segs[this.segIdx].start); }
+    else this.next();
+  },
+  tick(){
+    if (this.out) this.driveBlend();
+    if (!this.engine || !this.track) return;
+    const pos = this.engine.position();
+    renderProgress(pos);
+    if (this.busy || performance.now() < this.hold) return;
+    if (this.track.source === 'youtube' && !this.track.durationMs) this.learnDuration();
+    if (this.mode === 'queue' && !this.engine.paused()){
+      let seg = this.segs[this.segIdx];
+      // (during a part blend the new part plays a quiet lead-in just before its start; that isn't "outside")
+      const leadIn = this.out && pos < seg.start && pos > seg.start - 15000;
+      if (!leadIn && (pos < seg.start - 1500 || pos > seg.end + 1500)){   // jumped outside the current part
+        let i = this.segs.findIndex((s, k) => k >= this.segIdx && pos >= s.start && pos < s.end);
+        if (i < 0) i = this.segs.findIndex(s => pos >= s.start && pos < s.end);
+        if (i < 0){ this.advanceSeg(); return; }                // in a skipped bit: go to the next part
+        this.segIdx = i; seg = this.segs[i];
+      }
+      const last = this.segIdx === this.segs.length - 1, key = `${this.qIdx}:${this.track.id}:${this.segIdx}`;
+      // where does this song go next, and can the two overlap?
+      const nq = last ? this.nextQ() : -1, nextT = nq >= 0 ? library[this.queue[nq]] : null;
+      const blendMs = settings.blendOn && nextT ? settings.blendSec * 1000 : 0;
+      const bothSpotify = blendMs && this.track.source === 'spotify' && nextT.source === 'spotify';
+      if (blendMs && !bothSpotify && !this.out && pos >= seg.end - blendMs - this.loadEst[nextT.source]){ this.startBlend(nq); return; }
+      // between parts of a YouTube song: overlap on the second player (if the part is long enough to set it up)
+      const partBlendMs = settings.blendOn && this.track.fade && !last ? settings.partBlendSec * 1000 : 0;
+      if (partBlendMs && isYT(this.engine) && !this.out){
+        const trig = seg.end - partBlendMs - this.loadEst.youtube;
+        if (trig > seg.start + 500 && pos >= trig && pos < seg.end){ this.startPartBlend(partBlendMs); return; }
+      }
+      if (!this.out){
+        // fades: songs that arrived through a Spotify→Spotify blend fade in over half the blend time;
+        // otherwise the song's own "Smooth joins" fades (beat-timed when a beat is set)
+        const fade = this.track.fade, bt = this.track.beat ? beatLen(this.track) : 0;
+        // joins between parts: with Blend on, fade out and in over the "Blend between parts" time;
+        // with Blend off, a quick de-click fade (tiny when both edges sit on bar lines, so the rhythm carries on)
+        const joinMs = !fade ? 0 : settings.blendOn ? settings.partBlendSec * 500 : bt && onBar(this.track, seg.start) && onBar(this.track, seg.end) ? 60 : JOIN_MS;
+        const fin = this.segIdx === 0 ? (this.fadeInMs || (fade ? (bt || settings.fadeMs) : 0)) : joinMs;
+        const fout = last ? (bothSpotify ? blendMs / 2 : fade ? (bt ? 2 * bt : settings.fadeMs) : 0) : joinMs;
+        let g = 1;
+        if (fin) g = Math.min(g, (pos - seg.start) / fin + 0.05);
+        if (fout) g = Math.min(g, (seg.end - pos) / fout);
+        this.setVol(this.volume * clamp(g, 0.03, 1));
+      }
+      // jump early to hide the seek delay (Join timing); between two Spotify songs, start the next one loading
+      // a little early so the gap is as short as possible. The last fraction of a second uses a precise timer.
+      const jumpAt = seg.end - (!last ? settings.leadMs : bothSpotify ? Math.min(this.loadEst.spotify * 0.6, 700) : 0);
+      const go = () => { if (bothSpotify) this.pendingFadeIn = blendMs / 2; this.advanceSeg(); };
+      if (pos >= jumpAt) go();
+      else if (jumpAt - pos < 250 && this.jumpKey !== key){
+        this.jumpKey = key; clearTimeout(this.jumpTimer);
+        this.jumpTimer = setTimeout(() => {
+          if (this.mode === 'queue' && !this.busy && !this.engine.paused() && `${this.qIdx}:${this.track.id}:${this.segIdx}` === key) go();
+        }, jumpAt - pos);
+      }
+    } else if (this.mode === 'edit'){
+      this.setVol(this.volume);
+      if (this.preview && !this.engine.paused() && pos >= this.preview.end){ this.engine.pause(); this.preview = null; }
+    }
+  }
+};
+
+/* ---------- rendering ---------- */
+function renderConn(){
+  const dot = $('#sp-dot'), lab = $('#sp-label');
+  dot.className = 'dot';
+  if (!SP.tokens){ lab.textContent = settings.clientId ? 'Connect Spotify' : 'Set up Spotify'; }
+  else if (!SP.ready){ dot.classList.add('wait'); lab.textContent = 'Spotify: connecting…'; }
+  else { dot.classList.add('ok'); lab.textContent = 'Spotify connected'; }
+}
+function renderSearchHint(){
+  $('#q').placeholder = SP.tokens ? 'Search Spotify, or paste a Spotify or YouTube link' : 'Paste a YouTube link (connect Spotify to search Spotify)';
+}
+function badge(t){ return `<span class="badge ${t.source}">${t.source === 'youtube' ? 'YT' : 'SPOTIFY'}</span>`; }
+function keptText(t){
+  const d = durOf(t), n = (t.segments || []).length, bpm = t.beat ? ` · ${Math.round(t.beat.bpm)} BPM` : '';
+  if (!n) return `Whole song · ${d ? fmt(d, false) : 'length not known yet'}${bpm}`;
+  return `Keeping ${fmt(keptMs(t), false)}${d ? ' of ' + fmt(d, false) : ''} · ${n} part${n > 1 ? 's' : ''}${bpm}`;
+}
+function renderTimeline(el, t, pos, editable){
+  if (!t){ el.innerHTML = ''; el.dataset.sig = ''; el.classList.remove('nosegs'); return; }
+  const dur = durOf(t), segs = t.segments || [];
+  const sig = `${t.id}|${segs.length}|${editable}|${dur > 0}|${t._v || 0}`;
+  if (el.dataset.sig !== sig){
+    el.dataset.sig = sig;
+    el.innerHTML = (editable ? '<div class="grid"></div>' : '') + segs.map((s, i) => `<div class="seg" data-i="${i}">${editable ? `<span class="n">${i + 1}</span><span class="h" data-i="${i}" data-side="l"></span><span class="h" data-i="${i}" data-side="r"></span>` : ''}</div>`).join('') + '<div class="pend"></div><div class="ph"></div>';
+  }
+  el.classList.toggle('nosegs', !segs.length);
+  if (!dur) return;
+  const grid = el.querySelector('.grid');
+  if (grid){
+    const w = el.clientWidth, barPx = t.beat ? barLen(t) / dur * w : 0;
+    if (barPx >= 3){
+      const off = ((t.beat.anchor % barLen(t)) + barLen(t)) % barLen(t) / dur * w;
+      grid.style.display = 'block';
+      grid.style.backgroundImage = `repeating-linear-gradient(to right, rgba(255,255,255,.2) 0 1px, transparent 1px ${barPx}px)`;
+      grid.style.backgroundPosition = `${off}px 0`;
+    } else grid.style.display = 'none';
+  }
+  el.querySelectorAll('.seg').forEach(d => { const s = segs[+d.dataset.i]; if (!s) return; d.style.left = (s.start / dur * 100) + '%'; d.style.width = (Math.max(0, s.end - s.start) / dur * 100) + '%'; });
+  const ph = el.querySelector('.ph');
+  if (pos == null) ph.style.display = 'none'; else { ph.style.display = 'block'; ph.style.left = clamp(pos / dur * 100, 0, 100) + '%'; }
+  const pe = el.querySelector('.pend');
+  if (editable && pendingStart != null && pos != null && pos > pendingStart){ pe.style.display = 'block'; pe.style.left = (pendingStart / dur * 100) + '%'; pe.style.width = ((pos - pendingStart) / dur * 100) + '%'; }
+  else pe.style.display = 'none';
+}
+function renderLibrary(){
+  const el = $('#lib-list');
+  const total = library.reduce((a, t) => a + ((t.segments || []).length ? keptMs(t) : durOf(t)), 0);
+  $('#lib-stats').textContent = library.length ? `· ${library.length} song${library.length > 1 ? 's' : ''} · ${fmt(total, false)} total` : '';
+  $('#play-all').disabled = !library.length;
+  if (!library.length){ el.innerHTML = '<div class="empty">No songs yet. Search for a song, then mark the parts you love.</div>'; return; }
+  el.innerHTML = library.map((t, i) => `<li class="item ${Player.track === t && Player.mode === 'queue' ? 'playing' : ''}" data-i="${i}">
+      <img src="${esc(t.art)}" alt="" loading="lazy">
+      <div class="meta"><div class="t" title="${esc(t.title)}">${esc(t.title)}</div><div class="a">${badge(t)}${esc(t.artist)}</div>
+        <div class="tl mini" data-id="${t.id}"></div><div class="k">${keptText(t)}</div></div>
+      <div class="acts"><button data-act="play" title="Play from this song">▶</button><button data-act="edit" title="Choose the parts to keep">✂ Trim</button>
+        <button data-act="up" title="Move up" ${i ? '' : 'disabled'}>↑</button><button data-act="down" title="Move down" ${i < library.length - 1 ? '' : 'disabled'}>↓</button><button data-act="del" title="Remove">✕</button></div></li>`).join('');
+  el.querySelectorAll('.tl.mini').forEach(tl => renderTimeline(tl, library.find(t => t.id === tl.dataset.id), null, false));
+}
+function renderNow(){
+  const t = Player.track;
+  $('#bp-title').textContent = t ? t.title : 'Nothing playing';
+  $('#bp-title').title = t ? t.title : '';
+  if ('mediaSession' in navigator && t){
+    try { navigator.mediaSession.metadata = new MediaMetadata({title:t.title, artist:t.artist, artwork:t.art ? [{src:t.art}] : []}); } catch {}
+  }
+}
+function renderProgress(pos){
+  const t = Player.track, paused = Player.engine.paused();
+  $('#bp-play').textContent = paused ? '▶' : '⏸';
+  if (t.source === 'youtube'){
+    $('#yt-card .pp').textContent = paused ? '▶' : '⏸';
+    const [a, z] = Player.clock(pos), n = Player.mode === 'queue' ? Player.segs.length : 0;
+    $('#yt-time').textContent = `${fmt(a, false)} / ${fmt(z, false)}` + (n > 1 ? ` · part ${Player.segIdx + 1} of ${n}` : '');
+  }
+  const mini = document.querySelector(`.tl.mini[data-id="${t.id}"]`); if (mini) renderTimeline(mini, t, pos, false);
+  if (Player.busy) return;
+  if (editing){
+    const here = Player.track === editing;
+    renderTimeline($('#ed-tl'), editing, here ? pos : null, true);
+    $('#ed-clock').innerHTML = `${fmt(here ? pos : 0)} <small>/ ${fmt(durOf(editing))}</small>`;
+    $('#ed-play').textContent = here && !paused ? '⏸ Pause' : '▶ Play';
+  }
+}
+
+/* ---------- editor ---------- */
+let editing = null, pendingStart = null;
+function openEditor(t){
+  editing = t; pendingStart = null; taps = []; $('#editor').hidden = false; renderEditor();
+  window.scrollTo({top:0, behavior:'smooth'});
+  Player.open(t, 'edit', 0);
+}
+function closeEditor(){
+  if (!editing) return;
+  normalize(editing); saveLib();
+  if (Player.mode === 'edit'){ Player.engine?.pause(); Player.mode = 'idle'; }
+  editing = null; pendingStart = null; $('#editor').hidden = true; renderLibrary(); renderNow();
+}
+function renderEditor(){
+  const t = editing; if (!t) return;
+  $('#ed-art').src = t.art || ''; $('#ed-title').textContent = t.title; $('#ed-artist').innerHTML = badge(t) + esc(t.artist);
+  $('#ed-dur').textContent = fmt(durOf(t), false); $('#ed-fade').checked = !!t.fade;
+  $('#ed-tl').dataset.sig = '';
+  renderTimeline($('#ed-tl'), t, null, true);
+  renderSegList(); renderMarkBtn(); renderBeat();
+}
+function lenText(t, s){
+  let txt = fmt(s.end - s.start);
+  if (t.beat){ const bars = (s.end - s.start) / barLen(t); txt += ` · ${Math.round(bars * 10) / 10} bars`;
+    if (onBar(t, s.start) && onBar(t, s.end)) txt += '<span class="onbeat" title="Starts and ends on a bar line">✓ on beat</span>'; }
+  return txt;
+}
+function renderSegList(){
+  const t = editing, segs = t.segments || [], n = segs.length;
+  $('#ed-kept').textContent = n ? `· ${n} part${n > 1 ? 's' : ''}, ${fmt(keptMs(t), false)} of ${fmt(durOf(t), false)}` : '· no parts yet, so the whole song plays';
+  $('#ed-segs').innerHTML = n ? segs.map((s, i) => `<tr data-i="${i}">
+    <td class="ord"><b>${i + 1}</b> <button data-act="up" title="Play earlier" ${i ? '' : 'disabled'}>↑</button><button data-act="down" title="Play later" ${i < n - 1 ? '' : 'disabled'}>↓</button></td>
+    <td><input type="text" data-f="start" value="${fmt(s.start)}"></td><td><input type="text" data-f="end" value="${fmt(s.end)}"></td>
+    <td class="muted len">${lenText(t, s)}</td>
+    <td style="text-align:right"><button data-act="pv">▶<span class="pvl"> Play part</span></button> <button data-act="del" title="Remove part">✕</button></td></tr>`).join('')
+    : '<tr><td colspan="5" class="muted" style="padding:12px 6px">No parts yet. Play the song and press <kbd>[</kbd> then <kbd>]</kbd> to add your first one.</td></tr>';
+  $('#ed-chain').innerHTML = n > 1 ? 'Plays as one track: ' + segs.map((s, i) => `<b>Part ${i + 1}</b> (${fmt(s.start, false)}–${fmt(s.end, false)})`).join(' → ') + ` = <b>${fmt(keptMs(t), false)}</b>` : '';
+}
+function updateSegInputs(){
+  document.querySelectorAll('#ed-segs tr[data-i]').forEach(tr => { const s = editing.segments[+tr.dataset.i]; if (!s) return;
+    tr.querySelectorAll('input').forEach(inp => { if (document.activeElement !== inp) inp.value = fmt(s[inp.dataset.f]); });
+    tr.querySelector('.len').innerHTML = lenText(editing, s); });
+  const n = editing.segments.length; $('#ed-kept').textContent = `· ${n} part${n > 1 ? 's' : ''}, ${fmt(keptMs(editing), false)} of ${fmt(durOf(editing), false)}`;
+}
+function renderMarkBtn(){
+  const b = $('#ed-mstart');
+  b.classList.toggle('start', pendingStart != null);
+  b.innerHTML = pendingStart != null ? `Part starts at ${fmt(pendingStart)} <kbd>[</kbd>` : `＋ Start ${editing?.segments.length ? 'another' : 'a'} part <kbd>[</kbd>`;
+}
+const edPos = () => Player.track === editing && Player.engine ? Player.engine.position() : null;
+function markStart(){
+  const p = edPos(); if (p == null) return toast('Wait for the song to load');
+  pendingStart = snapping(editing) ? snapBar(editing, p) : p; renderMarkBtn(); if (Player.engine.paused()) Player.engine.play();
+}
+function markEnd(){
+  let p = edPos(); if (p == null) return toast('Wait for the song to load');
+  if (pendingStart == null) return toast('Start a part first. Press [ when the part begins.');
+  if (snapping(editing)){ p = snapBar(editing, p); if (p <= pendingStart) p = Math.min(pendingStart + barLen(editing), durOf(editing)); }
+  if (p - pendingStart < 500) return toast('That part is too short');
+  // new parts go in time order among the existing ones; use ↑ ↓ to change the order
+  const segs = editing.segments, at = segs.findIndex(s => s.start > pendingStart);
+  segs.splice(at < 0 ? segs.length : at, 0, {start:pendingStart, end:p}); pendingStart = null;
+  normalize(editing); saveLib(); renderEditor(); renderLibrary();
+  toast(`Part ${(at < 0 ? segs.length : at + 1)} added. Press [ to add another part.`);
+}
+function previewPart(i){
+  const s = editing.segments[i]; if (!s) return;
+  if (Player.track !== editing){ Player.open(editing, 'edit', s.start).then(ok => { if (ok) Player.preview = {end:s.end}; }); return; }
+  Player.mode = 'edit'; Player.preview = {end:s.end}; Player.seek(s.start); Player.engine.play();
+}
+
+/* editor timeline: drag handles / click to seek */
+$('#ed-tl').addEventListener('pointerdown', e => {
+  const tl = e.currentTarget, rect = tl.getBoundingClientRect(), dur = durOf(editing);
+  if (!dur) return;
+  const msAt = x => clamp((x - rect.left) / rect.width * dur, 0, dur);
+  const h = e.target.closest('.h');
+  if (h){
+    e.preventDefault(); h.setPointerCapture(e.pointerId);
+    const s = editing.segments[+h.dataset.i], side = h.dataset.side;
+    const move = ev => { let ms = msAt(ev.clientX); if (snapping(editing) && !ev.altKey) ms = snapBar(editing, ms);
+      if (side === 'l') s.start = Math.min(ms, s.end - 500); else s.end = Math.max(ms, s.start + 500);
+      renderTimeline(tl, editing, edPos(), true); updateSegInputs(); };
+    const up = () => { h.removeEventListener('pointermove', move); normalize(editing); saveLib(); renderEditor(); renderLibrary();
+      if (Player.track === editing){ Player.mode = 'edit'; const at = side === 'l' ? s.start : Math.max(s.start, s.end - 3000); Player.preview = side === 'r' ? {end:s.end} : null; Player.seek(at); Player.engine.play(); } };
+    h.addEventListener('pointermove', move); h.addEventListener('pointerup', up, {once:true}); h.addEventListener('pointercancel', up, {once:true});
+    return;
+  }
+  if (Player.track === editing){ Player.preview = null; Player.mode = 'edit'; Player.seek(msAt(e.clientX)); }
+});
+$('#ed-segs').addEventListener('change', e => {
+  const inp = e.target.closest('input'); if (!inp) return;
+  const i = +inp.closest('tr').dataset.i, v = parseTime(inp.value), s = editing.segments[i];
+  if (isNaN(v)){ inp.value = fmt(s[inp.dataset.f]); return toast('Type a time like 1:23.5', true); }
+  s[inp.dataset.f] = clamp(v, 0, durOf(editing) || v);
+  if (s.end <= s.start){ toast('The end must come after the start', true); }
+  normalize(editing); saveLib(); renderEditor(); renderLibrary();
+});
+$('#ed-segs').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return; const i = +b.closest('tr').dataset.i;
+  const segs = editing.segments, swap = j => { [segs[i], segs[j]] = [segs[j], segs[i]]; editing._v = (editing._v || 0) + 1; saveLib(); renderEditor(); renderLibrary(); };
+  if (b.dataset.act === 'up' && i > 0) swap(i - 1);
+  if (b.dataset.act === 'down' && i < segs.length - 1) swap(i + 1);
+  if (b.dataset.act === 'del'){ segs.splice(i, 1); saveLib(); renderEditor(); renderLibrary(); }
+  if (b.dataset.act === 'pv') previewPart(i);
+});
+$('#ed-play').onclick = () => {
+  if (Player.track !== editing){ Player.open(editing, 'edit', 0); return; }
+  Player.mode = 'edit'; Player.preview = null; Player.engine.paused() ? Player.engine.play() : Player.engine.pause();
+};
+$('#ed-back').onclick = () => { const p = edPos(); if (p != null){ Player.mode = 'edit'; Player.seek(p - 5000); } };
+$('#ed-fwd').onclick = () => { const p = edPos(); if (p != null){ Player.mode = 'edit'; Player.seek(p + 5000); } };
+$('#ed-mstart').onclick = markStart;
+$('#ed-mend').onclick = markEnd;
+/* ---- beat: tap along ---- */
+let taps = [];
+function renderBeat(){
+  const t = editing; if (!t) return;
+  $('#ed-beat-tools').hidden = !t.beat;
+  $('#ed-perfect').disabled = !t.beat || !t.segments.length;
+  if (t.beat){
+    $('#ed-bpm').innerHTML = `<b style="color:var(--text)">${t.beat.bpm} BPM</b> · bar lines on the timeline`;
+    if (document.activeElement !== $('#ed-bpm-in')) $('#ed-bpm-in').value = t.beat.bpm;
+    $('#ed-snapnew').checked = t.snap !== false;
+  } else {
+    $('#ed-bpm').textContent = taps.length ? `Keep tapping… (${taps.length} of 4)` : 'Not set. While the song plays, tap T on every beat, starting on a "1".';
+  }
+  $('#ed-tl').dataset.sig = ''; renderTimeline($('#ed-tl'), t, edPos(), true);
+}
+function tapBeat(){
+  const t = editing, p = edPos();
+  if (p == null || Player.engine.paused()) return toast('Play the song, then tap T along with the beat');
+  const now = performance.now(), last = taps[taps.length - 1];
+  if (last && (now - last.at > 2000 || p < last.pos)) taps = [];          // a pause or a jump starts a new run
+  taps.push({pos:p, at:now});
+  const btn = $('#ed-tap'); btn.classList.add('hit'); setTimeout(() => btn.classList.remove('hit'), 90);
+  if (taps.length >= 4){
+    // least-squares fit: tap i happens at anchor + i * beat
+    const n = taps.length, mx = (n - 1) / 2, my = taps.reduce((a, x) => a + x.pos, 0) / n;
+    let num = 0, den = 0; taps.forEach((x, i) => { num += (i - mx) * (x.pos - my); den += (i - mx) ** 2; });
+    let bpm = 60000 / (num / den);
+    if (bpm > 37 && bpm < 250){
+      // recorded music is almost always a whole-number tempo; rounding stops small tapping errors from adding up over the song
+      bpm = Math.abs(bpm - Math.round(bpm)) < 0.75 ? Math.round(bpm) : Math.round(bpm * 10) / 10;
+      const beat = 60000 / bpm, bar = beat * 4;
+      const first = taps.reduce((a, x, i) => a + x.pos - i * beat, 0) / n;   // where tap 0 (the "1") best fits
+      t.beat = {bpm, anchor:((first % bar) + bar) % bar};
+      saveLib(); renderLibrary();
+    }
+  }
+  renderBeat(); renderSegList();
+}
+$('#ed-tap').onclick = tapBeat;
+$('#ed-bpm-in').onchange = e => { const v = +e.target.value; if (!(v >= 40 && v <= 240)) return toast('Tempo should be between 40 and 240 BPM', true);
+  editing.beat.bpm = v; saveLib(); renderBeat(); renderSegList(); renderLibrary(); };
+$('#ed-half').onclick = () => { if (editing.beat.bpm / 2 >= 40){ editing.beat.bpm = Math.round(editing.beat.bpm / 2 * 10) / 10; saveLib(); renderBeat(); renderSegList(); renderLibrary(); } };
+$('#ed-double').onclick = () => { if (editing.beat.bpm * 2 <= 240){ editing.beat.bpm = Math.round(editing.beat.bpm * 20) / 10; saveLib(); renderBeat(); renderSegList(); renderLibrary(); } };
+$('#ed-shift').onclick = () => { const b = editing.beat; b.anchor = (b.anchor + beatLen(editing)) % barLen(editing); saveLib(); renderBeat(); renderSegList(); };
+$('#ed-snapnew').onchange = e => { editing.snap = e.target.checked; saveLib(); };
+$('#ed-beat-clear').onclick = () => { delete editing.beat; taps = []; saveLib(); renderBeat(); renderSegList(); renderLibrary(); };
+
+/* ---- perfect joins: put every part edge on a bar line ---- */
+$('#ed-perfect').onclick = () => {
+  const t = editing; if (!t.beat) return toast('Set the beat first: tap T along with the song');
+  const bar = barLen(t), d = durOf(t) || Infinity; let moved = 0;
+  t.segments.forEach(s => {
+    const a = snapBar(t, s.start); let z = snapBar(t, s.end);
+    if (z - a < bar) z = a + bar;                          // every part is at least one whole bar
+    z = Math.min(z, d);
+    if (Math.abs(a - s.start) > 40 || Math.abs(z - s.end) > 40) moved++;
+    s.start = a; s.end = z;
+  });
+  t._v = (t._v || 0) + 1; normalize(t); saveLib(); renderEditor(); renderLibrary();
+  toast(moved ? `Adjusted ${moved} part${moved > 1 ? 's' : ''}. Every part now starts and ends on a bar line, so each join keeps the beat.`
+              : 'Already perfect: every part starts and ends on a bar line.');
+};
+
+$('#ed-fade').onchange = e => { editing.fade = e.target.checked; saveLib(); };
+$('#ed-done').onclick = closeEditor;
+$('#ed-preview').onclick = () => { normalize(editing); saveLib(); const i = library.indexOf(editing); Player.playList([i], 0, false); };
+
+/* ---------- adding songs ---------- */
+function addItem(item){ library.push(item); saveLib(); renderLibrary(); openEditor(item); }
+async function addYouTube(id){
+  let title = 'YouTube video', artist = 'YouTube';
+  try { const r = await fetch('https://www.youtube.com/oembed?format=json&url=' + encodeURIComponent('https://www.youtube.com/watch?v=' + id));
+    if (r.ok){ const j = await r.json(); title = j.title || title; artist = (j.author_name || artist).replace(/ - Topic$/, ''); } } catch {}
+  addItem({id:uid(), source:'youtube', ref:id, title, artist, art:`https://i.ytimg.com/vi/${id}/mqdefault.jpg`, durationMs:0, segments:[], fade:true});
+}
+function spItem(t){
+  const imgs = t.album?.images || [];
+  return {id:uid(), source:'spotify', ref:t.uri, title:t.name, artist:(t.artists || []).map(a => a.name).join(', '),
+    art:(imgs[imgs.length - 2] || imgs[0])?.url || '', durationMs:t.duration_ms, segments:[], fade:true};
+}
+let lastResults = [];
+$('#search-form').onsubmit = async e => {
+  e.preventDefault();
+  const q = $('#q').value.trim(); if (!q) return;
+  const link = parseLink(q);
+  try {
+    if (link?.source === 'youtube'){ $('#q').value = ''; await addYouTube(link.id); return; }
+    if (link?.source === 'spotify'){
+      if (!SP.tokens){ toast('Connect Spotify to add Spotify songs', true); return; }
+      const t = await SP.api('/tracks/' + link.id); $('#q').value = ''; addItem(spItem(t)); return;
+    }
+    if (!SP.tokens){ toast('Connect Spotify to search, or paste a YouTube link', true); return; }
+    $('#results').innerHTML = '<div class="empty">Searching…</div>';
+    const j = await SP.api('/search?type=track&limit=10&q=' + encodeURIComponent(q));
+    lastResults = (j?.tracks?.items || []).map(spItem);
+    renderResults();
+  } catch (err){ toast(err.message, true); $('#results').innerHTML = ''; }
+};
+function renderResults(){
+    $('#results').innerHTML = lastResults.length ? lastResults.map((it, i) => { return `<li class="result" data-i="${i}">
+      <img src="${esc(it.art)}" alt="" loading="lazy"><div class="meta"><div class="t">${esc(it.title)}</div><div class="a">${esc(it.artist)} · ${fmt(it.durationMs, false)}</div></div>
+      <button data-act="add" class="primary">＋ Add &amp; trim</button></li>`; }).join('') : '<div class="empty">No results</div>';
+}
+$('#results').onclick = e => { const b = e.target.closest('button[data-act=add]'); if (!b) return;
+  const t = lastResults[+b.closest('.result').dataset.i]; if (t) addItem({...t, id:uid(), segments:[]}); };
+
+/* ---------- library actions ---------- */
+$('#lib-list').onclick = e => {
+  const b = e.target.closest('button'); if (!b) return;
+  const i = +b.closest('.item').dataset.i, t = library[i];
+  switch (b.dataset.act){
+    case 'play': if (editing) closeEditor(); Player.playFrom(i); break;
+    case 'edit': if (editing && editing !== t) closeEditor(); openEditor(t); break;
+    case 'up': if (i > 0){ [library[i - 1], library[i]] = [library[i], library[i - 1]]; libraryReordered(); } break;
+    case 'down': if (i < library.length - 1){ [library[i + 1], library[i]] = [library[i], library[i + 1]]; libraryReordered(); } break;
+    case 'del':
+      if (!confirm(`Remove "${t.title}" from your snips?`)) return;
+      if (editing === t) closeEditor();
+      if (Player.track === t) Player.stop();
+      library.splice(i, 1); saveLib(); renderLibrary(); break;
+  }
+};
+$('#play-all').onclick = () => { if (editing) closeEditor(); Player.playFrom(settings.shuffle ? Math.floor(Math.random() * library.length) : 0); };
+function renderToggles(){ $('#tg-shuffle').classList.toggle('on', settings.shuffle); $('#tg-loop').classList.toggle('on', settings.loop); $('#tg-blend').classList.toggle('on', settings.blendOn); }
+/* ---- smart order: arrange songs so the tempo flows from one to the next ---- */
+function libraryReordered(){
+  saveLib(); renderLibrary();
+  if (Player.mode === 'queue' && Player.track){ Player.queue = library.map((_, i) => i); Player.qIdx = Math.max(0, library.indexOf(Player.track)); }
+}
+$('#smart-order').onclick = () => {
+  const withBeat = library.filter(t => t.beat), without = library.filter(t => !t.beat);
+  if (withBeat.length < 2) return toast('Set the beat on at least 2 songs first (✂ Trim → tap T along) so SongSnip knows their tempo.', true);
+  // tempo distance, treating half/double time as close (e.g. 70 and 140 BPM flow well)
+  const dist = (a, b) => { const x = a.beat.bpm, y = b.beat.bpm; return Math.min(Math.abs(x - y), Math.abs(x - 2 * y), Math.abs(2 * x - y)); };
+  const rest = [...withBeat].sort((a, b) => a.beat.bpm - b.beat.bpm), out = [rest.shift()];
+  while (rest.length){ const l = out[out.length - 1]; let bi = 0; rest.forEach((t, i) => { if (dist(l, t) < dist(l, rest[bi])) bi = i; }); out.push(rest.splice(bi, 1)[0]); }
+  library = [...out, ...without]; libraryReordered();
+  toast(`Ordered ${out.length} songs by tempo (${out.map(t => Math.round(t.beat.bpm)).join(' → ')} BPM)` + (without.length ? `. ${without.length} song${without.length > 1 ? 's' : ''} without a beat stay at the end.` : '.'));
+};
+$('#tg-shuffle').onclick = () => { settings.shuffle = !settings.shuffle; saveSettings(); renderToggles(); };
+$('#tg-blend').onclick = () => { settings.blendOn = !settings.blendOn; saveSettings(); renderToggles();
+  toast(settings.blendOn ? `Blend on: songs blend over ${settings.blendSec} s` : 'Blend off'); };
+$('#tg-loop').onclick = () => { settings.loop = !settings.loop; Player.loopQueue = settings.loop; saveSettings(); renderToggles(); };
+$('#export').onclick = () => {
+  const blob = new Blob([JSON.stringify({app:'songsnip', version:1, library}, null, 2)], {type:'application/json'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'songsnip-backup.json'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+};
+$('#import').onclick = () => $('#import-file').click();
+$('#import-file').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  try {
+    const j = JSON.parse(await f.text()); const items = Array.isArray(j) ? j : j.library;
+    if (!Array.isArray(items)) throw new Error('This file is not a SongSnip backup');
+    const ok = items.filter(x => x && ['spotify', 'youtube'].includes(x.source) && typeof x.ref === 'string')
+      .map(x => ({id:uid(), source:x.source, ref:x.ref, title:String(x.title || ''), artist:String(x.artist || ''), art:String(x.art || ''),
+        durationMs:+x.durationMs || 0, fade:x.fade !== false, snap:x.snap !== false, ...(x.beat && +x.beat.bpm >= 40 && +x.beat.bpm <= 240 ? {beat:{bpm:+x.beat.bpm, anchor:+x.beat.anchor || 0}} : {}), segments:(x.segments || []).map(s => ({start:+s.start, end:+s.end}))}));
+    ok.forEach(normalize); library.push(...ok); saveLib(); renderLibrary(); toast(`Imported ${ok.length} song${ok.length === 1 ? '' : 's'}`);
+  } catch (err){ toast('Could not import: ' + err.message, true); }
+};
+
+/* ---------- bottom bar ---------- */
+$('#bp-play').onclick = () => { SP.activate(); Player.toggle(); };
+$('#bp-next').onclick = () => Player.next();
+$('#bp-prev').onclick = () => Player.prev();
+if ('mediaSession' in navigator){
+  try {
+    navigator.mediaSession.setActionHandler('nexttrack', () => Player.next());
+    navigator.mediaSession.setActionHandler('previoustrack', () => Player.prev());
+  } catch {}
+}
+
+/* ---------- settings ---------- */
+function openSettings(){
+  $('#part-blend-sec').value = settings.partBlendSec; $('#part-blend-val').textContent = settings.partBlendSec + ' s';
+  $('#blend-sec').value = settings.blendSec; $('#blend-val').textContent = settings.blendSec + ' s';
+  $('#lead-ms').value = settings.leadMs; $('#lead-val').textContent = settings.leadMs + ' ms';
+  $('#client-id').value = settings.clientId; $('#fade-ms').value = settings.fadeMs; $('#fade-val').textContent = (settings.fadeMs / 1000).toFixed(1) + 's';
+  $('#redirect-uri').textContent = SP.redirect();
+  const lh = location.hostname === 'localhost';
+  $('#localhost-warn').hidden = !lh;
+  if (lh){ const u = location.href.replace('//localhost', '//127.0.0.1'); $('#loopback-link').href = u; $('#loopback-link').textContent = u; }
+  $('#settings').showModal();
+}
+$('#open-settings').onclick = openSettings;
+$('#settings-close').onclick = () => { settings.clientId = $('#client-id').value.trim(); saveSettings(); $('#settings').close(); renderConn(); };
+
+$('#settings-connect').onclick = () => { settings.clientId = $('#client-id').value.trim(); saveSettings(); if (!settings.clientId) return toast('Paste your Client ID first', true); SP.login(); };
+$('#part-blend-sec').oninput = e => { settings.partBlendSec = +e.target.value; $('#part-blend-val').textContent = settings.partBlendSec + ' s'; saveSettings(); };
+$('#blend-sec').oninput = e => { settings.blendSec = +e.target.value; $('#blend-val').textContent = settings.blendSec + ' s'; saveSettings(); };
+$('#lead-ms').oninput = e => { settings.leadMs = +e.target.value; $('#lead-val').textContent = settings.leadMs + ' ms'; saveSettings(); };
+$('#fade-ms').oninput = e => { settings.fadeMs = +e.target.value; $('#fade-val').textContent = (settings.fadeMs / 1000).toFixed(1) + 's'; saveSettings(); };
+$('#copy-uri').onclick = () => navigator.clipboard?.writeText(SP.redirect()).then(() => toast('Copied'));
+$('#sp-chip').onclick = () => {
+  if (!SP.tokens) return settings.clientId ? SP.login() : openSettings();
+  if (confirm('Disconnect Spotify from SongSnip?')) SP.logout();
+};
+
+/* ---------- keyboard ---------- */
+renderYTSize();
+document.querySelector('.ytctl').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  ({prev:() => Player.prev(), next:() => Player.next(), play:() => Player.toggle(),
+    back:() => Player.nudge(-5000), fwd:() => Player.nudge(5000)})[b.dataset.yc]();
+});
+document.addEventListener('keydown', e => {
+  if (e.target.closest('input,textarea,dialog') || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.key === ' '){ e.preventDefault(); if (editing) $('#ed-play').click(); else $('#bp-play').click(); }
+  else if (e.key.toLowerCase() === 't' && editing) tapBeat();
+  else if (e.key === '[' && editing) markStart();
+  else if (e.key === ']' && editing) markEnd();
+  else if (e.key === 'ArrowLeft' && Player.engine){ e.preventDefault(); Player.nudge(-5000); }
+  else if (e.key === 'ArrowRight' && Player.engine){ e.preventDefault(); Player.nudge(5000); }
+  else if (e.key.toLowerCase() === 'n') Player.next();
+  else if (e.key === 'Escape' && editing) closeEditor();
+});
+document.addEventListener('pointerdown', () => SP.activate());
+
+/* ---------- boot ---------- */
+(async function boot(){
+  renderConn(); renderSearchHint(); renderToggles(); renderLibrary(); renderNow();
+  if (restoredYT.length) toast(`Restored ${restoredYT.length} YouTube song${restoredYT.length > 1 ? 's' : ''} you had trimmed before.`);
+  await SP.handleRedirect();
+  if (SP.tokens) SP.initSDK();
+  renderConn(); renderSearchHint();
+  setInterval(() => Player.tick(), 100);
+  setInterval(() => { if (Player.engine && !Player.busy) Player.engine.sync(); }, 1000);
+  if (location.protocol === 'file:') toast('Open SongSnip through start.sh (http://127.0.0.1:8888), not as a file. The players need a web address to work.', true);
+})();
+</script>
+</body>
+</html>
