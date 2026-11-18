@@ -20,7 +20,7 @@ button.primary:hover{background:var(--accent-d)}
 button.ghost{background:transparent;border-color:transparent}
 button.on{border-color:var(--accent);color:var(--accent)}
 button:disabled{opacity:.45;cursor:default}
-input[type=text],input[type=search]{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 11px;width:100%;outline:none}
+input[type=text],input[type=search],input[type=number]{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 11px;width:100%;outline:none}
 input:focus{border-color:var(--accent)}
 header{display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid var(--line);position:sticky;top:0;background:rgba(14,16,20,.92);backdrop-filter:blur(8px);z-index:20}
 .logo{font-weight:800;font-size:19px;letter-spacing:-.3px}
@@ -83,6 +83,7 @@ kbd{background:var(--bg);border:1px solid var(--line);border-bottom-width:2px;bo
 table.segs{width:100%;border-collapse:collapse;margin-top:8px}
 table.segs th{text-align:left;color:var(--muted);font-weight:500;font-size:12px;padding:4px 6px}
 table.segs td{padding:4px 6px;border-top:1px solid var(--line)}
+table.segs input.blend-in{width:64px}
 table.segs input{width:92px;padding:5px 8px;font-variant-numeric:tabular-nums}
 .hint{background:var(--panel2);border-radius:10px;padding:10px 12px;color:var(--muted);font-size:13px;margin-top:12px}
 /* mini player */
@@ -187,9 +188,9 @@ select{background:var(--bg);border:1px solid var(--line);border-radius:8px;paddi
       <label class="row muted" style="gap:6px"><input type="checkbox" id="ed-fade"> Blend between parts</label>
       <button id="ed-preview">▶ Play joined parts</button>
     </div>
-    <div class="segwrap"><table class="segs"><thead><tr><th>Order</th><th>Start</th><th>End</th><th>Length</th><th></th></tr></thead><tbody id="ed-segs"></tbody></table></div>
+    <div class="segwrap"><table class="segs"><thead><tr><th>Order</th><th>Start</th><th>End</th><th>Length</th><th title="Seconds this part mixes into the next one. Empty = default from Settings, 0 = clean cut">Blend into next</th><th></th></tr></thead><tbody id="ed-segs"></tbody></table></div>
     <div class="chain" id="ed-chain"></div>
-    <div class="hint">Play the song. Press <kbd>[</kbd> where a part you like starts and <kbd>]</kbd> where it ends. Repeat that for every part you want. SongSnip plays all your parts one after another as a single track, blending each into the next, and skips everything in between. Use ↑ ↓ to change the order, for example to put the chorus first. To fine-tune a part, drag its green handles or type times such as <code>1:23.5</code>. If you don't mark any parts, the whole song plays.<br><br><b>For seamless joins:</b> while the song plays, press <kbd>T</kbd> on every beat for a few seconds, starting on a "1". Bar lines then appear on the timeline. Click <b>✨ Make perfect joins</b> to move every part onto the bar lines, so the beat carries on smoothly into the next part and into the next song. While snapping is on, new parts and dragged handles snap to the bar lines too. Hold <kbd>Alt</kbd> while dragging to place a handle freely.</div>
+    <div class="hint">Play the song. Press <kbd>[</kbd> where a part you like starts and <kbd>]</kbd> where it ends. Repeat that for every part you want. SongSnip plays all your parts one after another as a single track, blending each into the next, and skips everything in between. Use ↑ ↓ to change the order, for example to put the chorus first. To fine-tune a part, drag its green handles or type times such as <code>1:23.5</code>. If you don't mark any parts, the whole song plays. <b>Blend into next</b> sets how many seconds each part mixes into the next one: leave it empty for the default from ⚙ Settings, or use 0 for a clean cut.<br><br><b>For seamless joins:</b> while the song plays, press <kbd>T</kbd> on every beat for a few seconds, starting on a "1". Bar lines then appear on the timeline. Click <b>✨ Make perfect joins</b> to move every part onto the bar lines, so the beat carries on smoothly into the next part and into the next song. While snapping is on, new parts and dragged handles snap to the bar lines too. Hold <kbd>Alt</kbd> while dragging to place a handle freely.</div>
   </section>
 
   <div class="col">
@@ -282,9 +283,9 @@ select{background:var(--bg);border:1px solid var(--line);border-radius:8px;paddi
   <input type="range" id="bg-lead" min="0" max="1500" step="50" style="width:100%">
   <p class="muted" style="margin:2px 0 0;font-size:12px">If jumps happen after your part has ended, raise this. If they cut your part short, lower it.</p>
   <h3 style="margin:22px 0 4px">Blending</h3>
-  <label class="field" for="part-blend-sec">Blend between parts of a song: <span id="part-blend-val"></span></label>
+  <label class="field" for="part-blend-sec">Default blend between parts: <span id="part-blend-val"></span></label>
   <input type="range" id="part-blend-sec" min="0.5" max="6" step="0.5" style="width:100%">
-  <p class="muted" style="margin:2px 0 0;font-size:12px">How long one part takes to melt into the next. On YouTube songs, the two parts overlap and crossfade, kept on the beat when a beat is set. On Spotify songs, the part fades out and the next one fades in, because Spotify can't play two spots of a song at once. You can switch this off for one song by unticking <b>Blend between parts</b> in its trimmer.</p>
+  <p class="muted" style="margin:2px 0 0;font-size:12px">How long one part takes to melt into the next. On YouTube songs, the two parts overlap and crossfade, kept on the beat when a beat is set. On Spotify songs the volume only dips a little around the jump, because Spotify can't play two spots of a song at once. You can set each join yourself in a song's trimmer (<b>Blend into next</b>). You can switch this off for one song by unticking <b>Blend between parts</b> in its trimmer.</p>
   <div class="row" style="margin-top:18px;justify-content:flex-end">
     <button type="button" id="settings-close">Close</button>
     <button type="button" class="primary" id="settings-connect">Save &amp; connect Spotify</button>
@@ -536,11 +537,15 @@ const durOf = t => t ? (t.durationMs || (Player.track === t ? Player.engine?.dur
 function normalize(t){
   const d = t.durationMs || Infinity;
   t.segments = (t.segments || []).filter(x => isFinite(x.start) && isFinite(x.end))
-    .map(x => ({start:clamp(x.start, 0, d), end:clamp(x.end, 0, d)})).filter(x => x.end - x.start >= 300);
+    .map(x => ({start:clamp(x.start, 0, d), end:clamp(x.end, 0, d), ...(isFinite(x.blend) && x.blend !== null ? {blend:clamp(+x.blend, 0, 8)} : {})}))
+    .filter(x => x.end - x.start >= 300);
 }
+// how long (ms) part k blends into the next one: its own setting, or the default from Settings
+const joinBlendMs = (segs, k) => { const b = segs[k]?.blend; return (b != null && isFinite(b) ? b : settings.partBlendSec) * 1000; };
+const SPOTIFY_DIP = 0.35;   // parts that can't overlap only dip to this volume around the jump, so there's no silent gap
 function playSegs(t){
   const d = durOf(t) || Infinity, endCap = d - 350;
-  let s = (t.segments || []).filter(x => x.end > x.start && x.start < endCap).map(x => ({start:x.start, end:Math.min(x.end, endCap)}));
+  let s = (t.segments || []).filter(x => x.end > x.start && x.start < endCap).map(x => ({start:x.start, end:Math.min(x.end, endCap), blend:x.blend}));
   return s.length ? s : [{start:0, end:endCap}];
 }
 /* ---------- beat grid (from tapping along) ---------- */
@@ -606,9 +611,9 @@ const Player = {
     o.ready = true;                                            // driveBlend starts the crossfade once it's really playing
   },
   // Blend between two parts of the same YouTube song: start the next part quietly on the second player and crossfade.
-  async startPartBlend(ms){
+  async startPartBlend(ms, custom){
     const t = this.track, seg = this.segs[this.segIdx];
-    if (t.beat){ const b = beatLen(t); ms = Math.max(b, Math.round(ms / b) * b); }   // a whole number of beats keeps both parts on the beat
+    if (t.beat && !custom){ const b = beatLen(t); ms = Math.max(b, Math.round(ms / b) * b); }   // a whole number of beats keeps both parts on the beat
     const o = this.out = {engine:this.engine, track:t, end:seg.end, rampLen:null};
     const idx = ++this.segIdx, next = this.segs[idx], t0 = performance.now();
     const ok = await this.open(t, 'queue', next.start, {keepOld:true, avoid:o.engine, silent:true});
@@ -622,7 +627,11 @@ const Player = {
   },
   driveBlend(){
     const o = this.out, op = o.engine.position();
-    if (op >= o.end - 40){ this.endBlend(); return; }
+    if (op >= o.end - 40){
+      // the new one isn't playing yet: let the old one run on a little rather than leave a silent gap (up to 8 s)
+      if (o.rampLen == null && !o.cancelled){ o.overrun ??= performance.now(); if (performance.now() - o.overrun < 8000) { if (o.ready && !this.busy && !this.engine.paused()) o.end = op + Math.min(o.plan || 1000, 1000); else return; } else { this.endBlend(); return; } }
+      else { this.endBlend(); return; }
+    }
     if (o.rampLen == null){
       // keep the old one playing normally until the new one is really playing (YouTube can take a while), then crossfade
       if (!o.ready || this.busy) return;
@@ -630,12 +639,12 @@ const Player = {
       if (o.parked){ if (r <= o.plan + 150){ o.parked = false; this.engine.play(); } return; }   // time to go
       if (this.engine.paused()) return;                        // not really playing yet
       if (r > o.plan + 600){ o.parked = true; this.engine.pause(); this.seek(o.inStart); return; }   // started early: wait at its start
-      if (o.align != null){
+      if (o.align != null && !o.overrun){
         // part blends: the new part should be at its start exactly o.plan before the old part ends, so the beats line up
         const want = o.align + (o.plan - r);
         if (Math.abs(this.engine.position() - want) > 80) this.seek(Math.max(0, want));
       }
-      o.rampLen = Math.max(400, r);
+      o.rampLen = Math.max(400, o.end - op);
     }
     const g = clamp((o.end - op) / o.rampLen, 0, 1);           // 1 → 0 across the blend
     o.engine.setVolume(this.volume * Math.sin(g * Math.PI / 2));          // equal-power crossfade
@@ -713,7 +722,7 @@ const Player = {
   advanceSeg(){
     this.jumpKey = null; clearTimeout(this.jumpTimer);
     this.segIdx++;
-    if (this.segIdx < this.segs.length){ if (this.track.fade) this.setVol(0.03); this.seek(this.segs[this.segIdx].start); }
+    if (this.segIdx < this.segs.length){ const L = joinBlendMs(this.segs, this.segIdx - 1); if (this.track.fade && !(settings.blendOn && L === 0)) this.setVol(this.volume * (settings.blendOn ? SPOTIFY_DIP : 0.03)); this.seek(this.segs[this.segIdx].start); }
     else this.next();
   },
   tick(){
@@ -743,10 +752,10 @@ const Player = {
       const bothSpotify = blendMs && (target === this.engine || (isYT(target) && !ytReady(target)));   // "can't overlap": fade out, then in
       if (blendMs && !bothSpotify && !this.out && pos >= seg.end - blendMs - this.startLead(nextT.source)){ this.startBlend(nq, blendMs); return; }
       // between parts of a YouTube song: overlap on the second player (if the part is long enough to set it up)
-      const partBlendMs = settings.blendOn && this.track.fade && !last ? settings.partBlendSec * 1000 : 0;
+      const partBlendMs = settings.blendOn && this.track.fade && !last ? joinBlendMs(this.segs, this.segIdx) : 0;
       if (partBlendMs && isYT(this.engine) && ytReady(this.engine === YTA ? YTB : YTA) && !this.out){
         const trig = seg.end - partBlendMs - this.startLead('youtube');
-        if (trig > seg.start + 500 && pos >= trig && pos < seg.end){ this.startPartBlend(partBlendMs); return; }
+        if (trig > seg.start + 500 && pos >= trig && pos < seg.end){ this.startPartBlend(partBlendMs, seg.blend != null); return; }
       }
       if (!this.out){
         // fades: songs that arrived through a Spotify→Spotify blend fade in over half the blend time;
@@ -754,13 +763,17 @@ const Player = {
         const fade = this.track.fade, bt = this.track.beat ? beatLen(this.track) : 0;
         // joins between parts: with Blend on, fade out and in over the "Blend between parts" time;
         // with Blend off, a quick de-click fade (tiny when both edges sit on bar lines, so the rhythm carries on)
-        const joinMs = !fade ? 0 : settings.blendOn ? settings.partBlendSec * 500 : bt && onBar(this.track, seg.start) && onBar(this.track, seg.end) ? 60 : JOIN_MS;
-        const fin = this.segIdx === 0 ? (this.fadeInMs || (fade ? (bt || settings.fadeMs) : 0)) : joinMs;
-        const fout = last ? (bothSpotify ? blendMs / 2 : fade ? (bt ? 2 * bt : settings.fadeMs) : 0) : joinMs;
+        // joins between parts that can't overlap: with Blend on, dip the volume a little around the jump over half of
+        // that join's blend time each side (never down to silence); with Blend off, a quick de-click fade
+        const quick = bt && onBar(this.track, seg.start) && onBar(this.track, seg.end) ? 60 : JOIN_MS;
+        const half = k => !fade ? 0 : settings.blendOn ? joinBlendMs(this.segs, k) / 2 : quick;
+        const floor = settings.blendOn ? SPOTIFY_DIP : 0.03;
         let g = 1;
-        if (fin) g = Math.min(g, (pos - seg.start) / fin + 0.05);
-        if (fout) g = Math.min(g, (seg.end - pos) / fout);
-        this.setVol(this.volume * clamp(g, 0.03, 1));
+        if (this.segIdx === 0){ const fin = this.fadeInMs || (fade ? (bt || settings.fadeMs) : 0); if (fin) g = Math.min(g, clamp((pos - seg.start) / fin + 0.05, 0.03, 1)); }
+        else { const h = half(this.segIdx - 1); if (h) g = Math.min(g, clamp(floor + (1 - floor) * (pos - seg.start) / h, floor, 1)); }
+        if (last){ const fout = bothSpotify ? blendMs / 2 : fade ? (bt ? 2 * bt : settings.fadeMs) : 0; if (fout) g = Math.min(g, clamp((seg.end - pos) / fout, 0.03, 1)); }
+        else { const h = half(this.segIdx); if (h) g = Math.min(g, clamp(floor + (1 - floor) * (seg.end - pos) / h, floor, 1)); }
+        this.setVol(this.volume * g);
       }
       // jump early to hide the seek delay (Join timing); between two Spotify songs, start the next one loading
       // a little early so the gap is as short as possible. The last fraction of a second uses a precise timer.
@@ -903,13 +916,14 @@ function renderSegList(){
     <td class="ord"><b>${i + 1}</b> <button data-act="up" title="Play earlier" ${i ? '' : 'disabled'}>↑</button><button data-act="down" title="Play later" ${i < n - 1 ? '' : 'disabled'}>↓</button></td>
     <td><input type="text" data-f="start" value="${fmt(s.start)}"></td><td><input type="text" data-f="end" value="${fmt(s.end)}"></td>
     <td class="muted len">${lenText(t, s)}</td>
+    <td>${i < n - 1 ? `<input type="number" class="blend-in" data-b="1" min="0" max="8" step="0.25" value="${s.blend ?? ''}" placeholder="${settings.partBlendSec}" title="Seconds part ${i + 1} mixes into part ${i + 2}. Leave empty for the default (${settings.partBlendSec} s); 0 = clean cut"> <span class="muted">s</span>` : '<span class="muted" title="The last part blends into the next song (Blend setting)">→ next song</span>'}</td>
     <td style="text-align:right"><button data-act="pv">▶<span class="pvl"> Play part</span></button> <button data-act="del" title="Remove part">✕</button></td></tr>`).join('')
-    : '<tr><td colspan="5" class="muted" style="padding:12px 6px">No parts yet. Play the song and press <kbd>[</kbd> then <kbd>]</kbd> to add your first one.</td></tr>';
+    : '<tr><td colspan="6" class="muted" style="padding:12px 6px">No parts yet. Play the song and press <kbd>[</kbd> then <kbd>]</kbd> to add your first one.</td></tr>';
   $('#ed-chain').innerHTML = n > 1 ? 'Plays as one track: ' + segs.map((s, i) => `<b>Part ${i + 1}</b> (${fmt(s.start, false)}–${fmt(s.end, false)})`).join(' → ') + ` = <b>${fmt(keptMs(t), false)}</b>` : '';
 }
 function updateSegInputs(){
   document.querySelectorAll('#ed-segs tr[data-i]').forEach(tr => { const s = editing.segments[+tr.dataset.i]; if (!s) return;
-    tr.querySelectorAll('input').forEach(inp => { if (document.activeElement !== inp) inp.value = fmt(s[inp.dataset.f]); });
+    tr.querySelectorAll('input[data-f]').forEach(inp => { if (document.activeElement !== inp) inp.value = fmt(s[inp.dataset.f]); });
     tr.querySelector('.len').innerHTML = lenText(editing, s); });
   const n = editing.segments.length; $('#ed-kept').textContent = `· ${n} part${n > 1 ? 's' : ''}, ${fmt(keptMs(editing), false)} of ${fmt(durOf(editing), false)}`;
 }
@@ -961,6 +975,11 @@ $('#ed-tl').addEventListener('pointerdown', e => {
 });
 $('#ed-segs').addEventListener('change', e => {
   const inp = e.target.closest('input'); if (!inp) return;
+  if (inp.dataset.b){                                  // a part's "blend into next" seconds
+    const s = editing.segments[+inp.closest('tr').dataset.i], v = inp.value.trim();
+    if (v === '') delete s.blend; else if (isFinite(+v)) s.blend = clamp(+v, 0, 8); else return toast('Type a number of seconds, like 1.5', true);
+    saveLib(); return;
+  }
   const i = +inp.closest('tr').dataset.i, v = parseTime(inp.value), s = editing.segments[i];
   if (isNaN(v)){ inp.value = fmt(s[inp.dataset.f]); return toast('Type a time like 1:23.5', true); }
   s[inp.dataset.f] = clamp(v, 0, durOf(editing) || v);
@@ -1139,7 +1158,7 @@ $('#import-file').onchange = async e => {
     if (!Array.isArray(items)) throw new Error('This file is not a SongSnip backup');
     const ok = items.filter(x => x && ['spotify', 'youtube'].includes(x.source) && typeof x.ref === 'string')
       .map(x => ({id:uid(), source:x.source, ref:x.ref, title:String(x.title || ''), artist:String(x.artist || ''), art:String(x.art || ''),
-        durationMs:+x.durationMs || 0, fade:x.fade !== false, snap:x.snap !== false, ...(x.beat && +x.beat.bpm >= 40 && +x.beat.bpm <= 240 ? {beat:{bpm:+x.beat.bpm, anchor:+x.beat.anchor || 0}} : {}), segments:(x.segments || []).map(s => ({start:+s.start, end:+s.end}))}));
+        durationMs:+x.durationMs || 0, fade:x.fade !== false, snap:x.snap !== false, ...(x.beat && +x.beat.bpm >= 40 && +x.beat.bpm <= 240 ? {beat:{bpm:+x.beat.bpm, anchor:+x.beat.anchor || 0}} : {}), segments:(x.segments || []).map(s => ({start:+s.start, end:+s.end, ...(isFinite(s.blend) && s.blend !== null ? {blend:+s.blend} : {})}))}));
     ok.forEach(normalize); library.push(...ok); saveLib(); renderLibrary(); toast(`Imported ${ok.length} song${ok.length === 1 ? '' : 's'}`);
   } catch (err){ toast('Could not import: ' + err.message, true); }
 };
