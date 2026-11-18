@@ -448,7 +448,7 @@ function makeYouTubeEngine(slot){
           playerVars:{playsinline:1, rel:0, origin:location.origin},
           events:{
             onReady: () => res(),
-            onStateChange: ev => { if (ev.data === 1) e.started = e.everPlayed = true; if (ev.data === 0 && Player.engine === e) Player.onEnded(); },
+            onStateChange: ev => { if (ev.data === 1) e.markStarted(); if (ev.data === 0 && Player.engine === e) Player.onEnded(); },
             onError: ev => {
               if (Player.engine !== e) return;
               const why = [101, 150].includes(ev.data) ? 'the owner does not allow this video to play on other websites. Try the same song from its "Artist - Topic" channel or a lyric video.'
@@ -469,12 +469,19 @@ function makeYouTubeEngine(slot){
       // or the browser blocking autoplay can hold it up, and none of those are a reason to skip the song.
       await waitFor(() => (this.player.getVideoUrl?.() || '').includes(track.ref) || this.player.getVideoData?.()?.video_id === track.ref, 8000);
     },
+    // the video is really playing (after any ad): learn how long YouTube takes to start, so blends can begin that much earlier
+    markStarted(){
+      if (this.started) return; this.started = this.everPlayed = true;
+      const took = performance.now() - this.loadedAt;
+      if (this.loadedAt && took > 0 && took < 30000){ Player.loadEst.youtube = Math.round(Player.loadEst.youtube * 0.5 + took * 0.5); store.set('ytLoadEst', Player.loadEst.youtube); }
+      if (!this.nagged && !ytAutoplayOK){ ytAutoplayOK = true; store.set('ytAutoplay', true); }
+    },
     play(){ this.player?.playVideo(); },
     pause(){ this.player?.pauseVideo(); },
     seek(ms){ this.player?.seekTo(Math.max(0, ms) / 1000, true); },
     position(){ return (this.player?.getCurrentTime?.() || 0) * 1000; },
     // until the video has really started (after any ad), count it as paused, so part tracking doesn't act on it
-    paused(){ const st = this.player?.getPlayerState?.(); if (st === 1) this.started = this.everPlayed = true; return !this.started || (st !== 1 && st !== 3); },
+    paused(){ const st = this.player?.getPlayerState?.(); if (st === 1) this.markStarted(); return !this.started || (st !== 1 && st !== 3); },
     duration(){ return (this.player?.getDuration?.() || 0) * 1000; },
     setVolume(v){ this.player?.setVolume?.(Math.round(clamp(v, 0, 1) * 100)); },
     stop(){ try { this.player?.pauseVideo(); } catch {} },
@@ -483,6 +490,11 @@ function makeYouTubeEngine(slot){
   return e;
 }
 const YTA = makeYouTubeEngine('a'), YTB = makeYouTubeEngine('b');
+// true once a YouTube video has started by itself in this browser: then any of our players can autoplay
+let ytAutoplayOK = store.get('ytAutoplay', false);
+const ytReady = e => e.everPlayed || ytAutoplayOK;
+// set up both YouTube players early (hidden), so the first YouTube song doesn't wait for them
+const warmYT = () => setTimeout(() => { YTA.init().catch(() => {}); YTB.init().catch(() => {}); }, 300);
 const isYT = eng => eng === YTA || eng === YTB;
 // show the card (and each video box) only while that YouTube player is in use
 function showYT(loading){
@@ -532,7 +544,9 @@ const Player = {
   mode: 'idle', track: null, engine: null, segs: [], segIdx: 0, busy: false, hold: 0,
   volume: 0.85, lastVol: -1, preview: null, queue: [], qIdx: 0, loopQueue: true, failures: 0,
   out: null,                                   // the song fading out during a blend: {engine, track, end, rampLen}
-  loadEst: {spotify:1200, youtube:1500},       // how long each service takes to start a song (learned as you listen)
+  loadEst: {spotify:1200, youtube:store.get('ytLoadEst', 3000)},   // how long each service takes to start playing a song (learned as you listen)
+  // start the next song this early; YouTube varies a lot (ads, buffering), so lean early: too early just means a longer crossfade
+  startLead(src){ return src === 'youtube' ? this.loadEst.youtube * 1.2 + 300 : this.loadEst[src]; },
   fadeInMs: 0, pendingFadeIn: 0,
   engineFor(t, avoid){
     if (t.source !== 'youtube') return SpotifyEngine;
@@ -559,11 +573,11 @@ const Player = {
   // the next position in the play order, or -1 at the end of a list that doesn't repeat
   nextQ(){ if (this.mode !== 'queue') return -1; let q = this.qIdx + 1; if (q >= this.queue.length){ if (!this.loopQueue) return -1; q = 0; } return q; },
   // Blend: start the next song quietly on a second player while this one plays its last seconds, then crossfade.
-  async startBlend(nq){
+  async startBlend(nq, blendMs){
     const seg = this.segs[this.segs.length - 1];
-    const o = this.out = {engine:this.engine, track:this.track, end:seg.end, rampLen:null};
+    const o = this.out = {engine:this.engine, track:this.track, end:seg.end, rampLen:null, plan:blendMs};
     this.qIdx = nq; const t = library[this.queue[nq]];
-    this.segs = playSegs(t); this.segIdx = 0;
+    this.segs = playSegs(t); this.segIdx = 0; o.inStart = this.segs[0].start;
     const t0 = performance.now();
     const ok = await this.open(t, 'queue', this.segs[0].start, {keepOld:true, avoid:o.engine, silent:true});
     if (o.cancelled) return;                                   // you skipped or paused meanwhile
@@ -571,9 +585,8 @@ const Player = {
       if (o.done) this.next(); else o.onDone = () => this.next();
       return;
     }
-    this.loadEst[t.source] = Math.round(this.loadEst[t.source] * 0.6 + (performance.now() - t0) * 0.4);
-    if (o.done) return;                                        // the old song already finished
-    o.rampLen = Math.max(400, o.end - o.engine.position());
+    if (t.source === 'spotify') this.loadEst.spotify = Math.round(this.loadEst.spotify * 0.6 + (performance.now() - t0) * 0.4);
+    o.ready = true;                                            // driveBlend starts the crossfade once it's really playing
   },
   // Blend between two parts of the same YouTube song: start the next part quietly on the second player and crossfade.
   async startPartBlend(ms){
@@ -583,13 +596,8 @@ const Player = {
     const idx = ++this.segIdx, next = this.segs[idx], t0 = performance.now();
     const ok = await this.open(t, 'queue', next.start, {keepOld:true, avoid:o.engine, silent:true});
     if (o.cancelled) return;
-    if (ok && !o.done){
-      this.loadEst.youtube = Math.round(this.loadEst.youtube * 0.6 + (performance.now() - t0) * 0.4);
-      // line the two up: when the crossfade starts (ms before the old part ends), the new part is exactly at its start
-      const r = o.end - o.engine.position();
-      this.seek(Math.max(0, next.start + ms - r));
-      o.rampLen = ms;
-    } else if (!ok){
+    if (ok && !o.done){ o.align = o.inStart = next.start; o.plan = ms; o.ready = true; }   // driveBlend lines the parts up once it plays
+    else if (!ok){
       // the second player couldn't start: go back to a plain fade at the join on the first player
       this.out = null; this.engine = o.engine; this.lastVol = -1; showYT();
       if (o.done){ this.seek(next.start); o.engine.play(); } else this.segIdx = idx - 1;
@@ -598,7 +606,20 @@ const Player = {
   driveBlend(){
     const o = this.out, op = o.engine.position();
     if (op >= o.end - 40){ this.endBlend(); return; }
-    if (o.rampLen == null) return;                             // next song still loading: keep playing as normal
+    if (o.rampLen == null){
+      // keep the old one playing normally until the new one is really playing (YouTube can take a while), then crossfade
+      if (!o.ready || this.busy) return;
+      const r = o.end - op;
+      if (o.parked){ if (r <= o.plan + 150){ o.parked = false; this.engine.play(); } return; }   // time to go
+      if (this.engine.paused()) return;                        // not really playing yet
+      if (r > o.plan + 600){ o.parked = true; this.engine.pause(); this.seek(o.inStart); return; }   // started early: wait at its start
+      if (o.align != null){
+        // part blends: the new part should be at its start exactly o.plan before the old part ends, so the beats line up
+        const want = o.align + (o.plan - r);
+        if (Math.abs(this.engine.position() - want) > 80) this.seek(Math.max(0, want));
+      }
+      o.rampLen = Math.max(400, r);
+    }
     const g = clamp((o.end - op) / o.rampLen, 0, 1);           // 1 → 0 across the blend
     o.engine.setVolume(this.volume * Math.sin(g * Math.PI / 2));          // equal-power crossfade
     if (!this.busy) this.setVol(this.volume * Math.sin((1 - g) * Math.PI / 2));
@@ -702,12 +723,12 @@ const Player = {
       // Songs can overlap unless both are Spotify (one stream per account), or the next one needs a YouTube player
       // that hasn't played yet (browsers only let a YouTube player start by itself after you've tapped it once).
       const target = nextT ? this.engineFor(nextT, this.engine) : null;
-      const bothSpotify = blendMs && (target === this.engine || (isYT(target) && !target.everPlayed));   // "can't overlap": fade out, then in
-      if (blendMs && !bothSpotify && !this.out && pos >= seg.end - blendMs - this.loadEst[nextT.source]){ this.startBlend(nq); return; }
+      const bothSpotify = blendMs && (target === this.engine || (isYT(target) && !ytReady(target)));   // "can't overlap": fade out, then in
+      if (blendMs && !bothSpotify && !this.out && pos >= seg.end - blendMs - this.startLead(nextT.source)){ this.startBlend(nq, blendMs); return; }
       // between parts of a YouTube song: overlap on the second player (if the part is long enough to set it up)
       const partBlendMs = settings.blendOn && this.track.fade && !last ? settings.partBlendSec * 1000 : 0;
-      if (partBlendMs && isYT(this.engine) && (this.engine === YTA ? YTB : YTA).everPlayed && !this.out){
-        const trig = seg.end - partBlendMs - this.loadEst.youtube;
+      if (partBlendMs && isYT(this.engine) && ytReady(this.engine === YTA ? YTB : YTA) && !this.out){
+        const trig = seg.end - partBlendMs - this.startLead('youtube');
         if (trig > seg.start + 500 && pos >= trig && pos < seg.end){ this.startPartBlend(partBlendMs); return; }
       }
       if (!this.out){
@@ -814,10 +835,12 @@ function renderProgress(pos){
   if (t.source === 'youtube'){
     $('#yt-card .pp').textContent = paused ? '▶' : '⏸';
     const [a, z] = Player.clock(pos), n = Player.mode === 'queue' ? Player.segs.length : 0;
-    const e = Player.engine, waiting = isYT(e) && !e.started && !Player.busy, slow = waiting && performance.now() - e.loadedAt > 6000;
-    $('#yt-time').textContent = waiting ? (slow ? 'Tap ▶ on the video to start it (needed once after opening SongSnip).' : 'Starting…')
-      : `${fmt(a, false)} / ${fmt(z, false)}` + (n > 1 ? ` · part ${Player.segIdx + 1} of ${n}` : '');
-    if (slow && !e.nagged && e.player?.getPlayerState?.() !== 3){ e.nagged = true; toast('Tap ▶ on the video once. Chrome only lets a YouTube video start by itself after you have tapped it, so after this one, YouTube songs will start on their own until you reload the page.'); }
+    const e = Player.engine, waiting = isYT(e) && !e.started && !Player.busy, since = waiting ? performance.now() - e.loadedAt : 0;
+    const st = e.player?.getPlayerState?.(), stuck = since > 15000 && (st === -1 || st === 5) && !ytAutoplayOK;
+    $('#yt-time').textContent = !waiting ? '' : stuck ? 'Tap ▶ on the video to start it.' : since > 5000 ? 'Still loading from YouTube (it may be showing an ad first)…' : 'Loading from YouTube…';
+    if (!waiting) $('#yt-time').textContent =
+      `${fmt(a, false)} / ${fmt(z, false)}` + (n > 1 ? ` · part ${Player.segIdx + 1} of ${n}` : '');
+    if (stuck && !e.nagged){ e.nagged = true; toast('Tap ▶ on the video once. Chrome only lets a YouTube video start by itself after you have tapped it, so after this one, YouTube songs will start on their own until you reload the page.'); }
   }
   const mini = document.querySelector(`.tl.mini[data-id="${t.id}"]`); if (mini) renderTimeline(mini, t, pos, false);
   if (Player.busy) return;
@@ -1016,6 +1039,7 @@ async function addYouTube(id){
   let title = 'YouTube video', artist = 'YouTube';
   try { const r = await fetch('https://www.youtube.com/oembed?format=json&url=' + encodeURIComponent('https://www.youtube.com/watch?v=' + id));
     if (r.ok){ const j = await r.json(); title = j.title || title; artist = (j.author_name || artist).replace(/ - Topic$/, ''); } } catch {}
+  warmYT();
   addItem({id:uid(), source:'youtube', ref:id, title, artist, art:`https://i.ytimg.com/vi/${id}/mqdefault.jpg`, durationMs:0, segments:[], fade:true});
 }
 function spItem(t){
@@ -1166,6 +1190,7 @@ document.addEventListener('pointerdown', () => SP.activate());
   if (restoredYT.length) toast(`Restored ${restoredYT.length} YouTube song${restoredYT.length > 1 ? 's' : ''} you had trimmed before.`);
   await SP.handleRedirect();
   if (SP.tokens) SP.initSDK();
+  if (library.some(t => t.source === 'youtube')) warmYT();
   renderConn(); renderSearchHint();
   setInterval(() => Player.tick(), 100);
   setInterval(() => { if (Player.engine && !Player.busy) Player.engine.sync(); }, 1000);
