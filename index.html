@@ -448,8 +448,14 @@ function makeYouTubeEngine(slot){
           playerVars:{playsinline:1, rel:0, origin:location.origin},
           events:{
             onReady: () => res(),
-            onStateChange: ev => { if (ev.data === 0 && Player.engine === e) Player.onEnded(); },
-            onError: ev => { if (Player.engine === e) toast('YouTube error ' + ev.data + ([101, 150].includes(ev.data) ? ': the owner does not allow this video to play on other sites.' : ''), true); }
+            onStateChange: ev => { if (ev.data === 1) e.started = true; if (ev.data === 0 && Player.engine === e) Player.onEnded(); },
+            onError: ev => {
+              if (Player.engine !== e) return;
+              const why = [101, 150].includes(ev.data) ? 'the owner does not allow this video to play on other websites. Try the same song from its "Artist - Topic" channel or a lyric video.'
+                        : [100].includes(ev.data) ? 'this video was removed or is private.' : 'this video cannot be played.';
+              toast(`YouTube error ${ev.data}: ${why}`, true);
+              if (Player.mode === 'queue') setTimeout(() => { if (Player.engine === e) Player.next(); }, 1500);   // a real error: move on
+            }
           }});
       })).catch(err => { this.readyP = null; throw err; });
     },
@@ -457,15 +463,18 @@ function makeYouTubeEngine(slot){
       showYT(e);
       await this.init();
       if (silent) this.player.setVolume(0);
+      this.started = false; this.loadedAt = performance.now(); this.nagged = false;
       this.player.loadVideoById({videoId:track.ref, startSeconds:startMs / 1000});
-      const ok = await waitFor(() => this.player.getVideoData()?.video_id === track.ref && [1, 2].includes(this.player.getPlayerState()), 12000);
-      if (!ok) throw new Error('The YouTube video did not start. Press play on the video, or try again.');
+      // Only wait until YouTube has taken the video. Don't wait for it to actually play: an ad, slow buffering,
+      // or the browser blocking autoplay can hold it up, and none of those are a reason to skip the song.
+      await waitFor(() => (this.player.getVideoUrl?.() || '').includes(track.ref) || this.player.getVideoData?.()?.video_id === track.ref, 8000);
     },
     play(){ this.player?.playVideo(); },
     pause(){ this.player?.pauseVideo(); },
     seek(ms){ this.player?.seekTo(Math.max(0, ms) / 1000, true); },
     position(){ return (this.player?.getCurrentTime?.() || 0) * 1000; },
-    paused(){ const st = this.player?.getPlayerState?.(); return st !== 1 && st !== 3; },
+    // until the video has really started (after any ad), count it as paused, so part tracking doesn't act on it
+    paused(){ const st = this.player?.getPlayerState?.(); if (st === 1) this.started = true; return !this.started || (st !== 1 && st !== 3); },
     duration(){ return (this.player?.getDuration?.() || 0) * 1000; },
     setVolume(v){ this.player?.setVolume?.(Math.round(clamp(v, 0, 1) * 100)); },
     stop(){ try { this.player?.pauseVideo(); } catch {} },
@@ -802,7 +811,10 @@ function renderProgress(pos){
   if (t.source === 'youtube'){
     $('#yt-card .pp').textContent = paused ? '▶' : '⏸';
     const [a, z] = Player.clock(pos), n = Player.mode === 'queue' ? Player.segs.length : 0;
-    $('#yt-time').textContent = `${fmt(a, false)} / ${fmt(z, false)}` + (n > 1 ? ` · part ${Player.segIdx + 1} of ${n}` : '');
+    const e = Player.engine, waiting = isYT(e) && !e.started && !Player.busy, slow = waiting && performance.now() - e.loadedAt > 6000;
+    $('#yt-time').textContent = waiting ? (slow ? 'Not started yet. Tap ▶ on the video to start it.' : 'Starting…')
+      : `${fmt(a, false)} / ${fmt(z, false)}` + (n > 1 ? ` · part ${Player.segIdx + 1} of ${n}` : '');
+    if (slow && !e.nagged && e.player?.getPlayerState?.() !== 3){ e.nagged = true; toast('YouTube is waiting for you: tap ▶ on the video to start it. Your browser may have blocked it from starting by itself.'); }
   }
   const mini = document.querySelector(`.tl.mini[data-id="${t.id}"]`); if (mini) renderTimeline(mini, t, pos, false);
   if (Player.busy) return;
