@@ -223,6 +223,7 @@ select{background:var(--bg);border:1px solid var(--line);border-radius:8px;paddi
       <button id="tg-shuffle" title="Shuffle">⤮ Shuffle</button>
       <button id="tg-loop" title="Repeat the whole list">↻ Repeat</button>
       <button id="tg-blend" title="Blend each song into the next, like Apple Music">🔀 Blend</button>
+      <button id="tg-helper" hidden title="Play through the Spotify app on your phone, so it keeps going with the phone locked">📱 Play in Spotify app</button>
       <button id="smart-order" title="Order songs so the tempo flows smoothly from one to the next">✨ Smart order</button>
       <span class="row" style="gap:0;margin-left:auto;flex-wrap:nowrap">
         <button class="ghost" id="export" title="Download a backup of your snips">Export</button>
@@ -266,6 +267,21 @@ select{background:var(--bg);border:1px solid var(--line);border-radius:8px;paddi
   <label class="field" for="blend-sec">Blend songs together: <span id="blend-val"></span></label>
   <input type="range" id="blend-sec" min="1" max="12" step="1" style="width:100%">
   <p class="muted" style="margin:2px 0 0;font-size:12px">Like Apple Music: the end of one song fades out while the next one fades in, over this many seconds. Only the parts you kept are used, never the cut-out bits. Spotify plays only one song at a time per account, so two Spotify songs can't overlap. Between them, the first fades out and the next fades in straight after. When either song is from YouTube, they overlap fully. Turn blending on or off with <b>🔀 Blend</b> in your song list.</p>
+  <h3 style="margin:22px 0 4px">Background playback (phone)</h3>
+  <p class="muted" style="margin:0 0 6px;font-size:13px">Lets the Spotify app on your phone play only your parts, even with the phone locked. A small helper in your own free Cloudflare account tells Spotify when to jump. Spotify songs only, because YouTube can't play in the background. In this mode there are no fades or blends: Spotify doesn't let other apps change an iPhone's volume.</p>
+  <label class="field" for="helper-url">Helper address</label>
+  <input type="text" id="helper-url" placeholder="https://songsnip-helper.….workers.dev" autocomplete="off" spellcheck="false">
+  <div class="row" style="margin-top:8px">
+    <button type="button" id="helper-setup">Set up</button>
+    <button type="button" id="helper-login">Connect helper to Spotify</button>
+    <button type="button" id="helper-pair">Link for your phone</button>
+    <button type="button" class="ghost" id="helper-forget">Forget</button>
+  </div>
+  <p class="muted" id="helper-status" style="font-size:13px;margin:6px 0 0"></p>
+  <label class="field" for="bg-lead">Background jump timing: jump <span id="bg-lead-val"></span> early</label>
+  <input type="range" id="bg-lead" min="0" max="1500" step="50" style="width:100%">
+  <p class="muted" style="margin:2px 0 0;font-size:12px">If jumps happen after your part has ended, raise this. If they cut your part short, lower it.</p>
+  <h3 style="margin:22px 0 4px">Blending</h3>
   <label class="field" for="part-blend-sec">Blend between parts of a song: <span id="part-blend-val"></span></label>
   <input type="range" id="part-blend-sec" min="0.5" max="6" step="0.5" style="width:100%">
   <p class="muted" style="margin:2px 0 0;font-size:12px">How long one part takes to melt into the next. On YouTube songs, the two parts overlap and crossfade, kept on the beat when a beat is set. On Spotify songs, the part fades out and the next one fades in, because Spotify can't play two spots of a song at once. You can switch this off for one song by unticking <b>Blend between parts</b> in its trimmer.</p>
@@ -287,8 +303,9 @@ const store = {
 let library = store.get('library', []);
 const restoredYT = store.get('youtube_backup', []);
 if (restoredYT.length){ library = library.concat(restoredYT.filter(t => !library.some(x => x.id === t.id))); store.set('library', library); store.del('youtube_backup'); }
-const settings = Object.assign({clientId:'', loop:true, shuffle:false, fadeMs:1200, ytMini:false, leadMs:120, blendOn:true, blendSec:6, partBlendSec:2}, store.get('settings', {}));
-const saveLib = () => store.set('library', library);
+const settings = Object.assign({clientId:'', loop:true, shuffle:false, fadeMs:1200, ytMini:false, leadMs:120, blendOn:true, blendSec:6, partBlendSec:2, helper:null, useHelper:false, bgLeadMs:450}, store.get('settings', {}));
+const saveLib = () => { store.set('library', library); HELP?.syncSoon(); };
+var HELP;   // background helper client (set up further down)
 const saveSettings = () => store.set('settings', settings);
 const uid = () => Math.random().toString(36).slice(2, 10);
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
@@ -1078,7 +1095,7 @@ $('#lib-list').onclick = e => {
   const b = e.target.closest('button'); if (!b) return;
   const i = +b.closest('.item').dataset.i, t = library[i];
   switch (b.dataset.act){
-    case 'play': if (editing) closeEditor(); Player.playFrom(i); break;
+    case 'play': if (editing) closeEditor(); if (HELP.on()) HELP.playFrom(i); else Player.playFrom(i); break;
     case 'edit': if (editing && editing !== t) closeEditor(); openEditor(t); break;
     case 'up': if (i > 0){ [library[i - 1], library[i]] = [library[i], library[i - 1]]; libraryReordered(); } break;
     case 'down': if (i < library.length - 1){ [library[i + 1], library[i]] = [library[i], library[i + 1]]; libraryReordered(); } break;
@@ -1089,7 +1106,7 @@ $('#lib-list').onclick = e => {
       library.splice(i, 1); saveLib(); renderLibrary(); break;
   }
 };
-$('#play-all').onclick = () => { if (editing) closeEditor(); Player.playFrom(settings.shuffle ? Math.floor(Math.random() * library.length) : 0); };
+$('#play-all').onclick = () => { if (editing) closeEditor(); const i = settings.shuffle ? Math.floor(Math.random() * library.length) : 0; if (HELP.on()) HELP.playFrom(i); else Player.playFrom(i); };
 function renderToggles(){ $('#tg-shuffle').classList.toggle('on', settings.shuffle); $('#tg-loop').classList.toggle('on', settings.loop); $('#tg-blend').classList.toggle('on', settings.blendOn); }
 /* ---- smart order: arrange songs so the tempo flows from one to the next ---- */
 function libraryReordered(){
@@ -1128,9 +1145,9 @@ $('#import-file').onchange = async e => {
 };
 
 /* ---------- bottom bar ---------- */
-$('#bp-play').onclick = () => { SP.activate(); Player.toggle(); };
-$('#bp-next').onclick = () => Player.next();
-$('#bp-prev').onclick = () => Player.prev();
+$('#bp-play').onclick = () => { if (HELP.on()) return HELP.cmd('/toggle'); SP.activate(); Player.toggle(); };
+$('#bp-next').onclick = () => HELP.on() ? HELP.cmd('/next') : Player.next();
+$('#bp-prev').onclick = () => HELP.on() ? HELP.cmd('/prev') : Player.prev();
 if ('mediaSession' in navigator){
   try {
     navigator.mediaSession.setActionHandler('nexttrack', () => Player.next());
@@ -1148,9 +1165,121 @@ function openSettings(){
   const lh = location.hostname === 'localhost';
   $('#localhost-warn').hidden = !lh;
   if (lh){ const u = location.href.replace('//localhost', '//127.0.0.1'); $('#loopback-link').href = u; $('#loopback-link').textContent = u; }
+  HELP.refreshSettings();
   $('#settings').showModal();
 }
 $('#open-settings').onclick = openSettings;
+
+/* ---------- background playback: talks to your SongSnip helper (Cloudflare), which drives the Spotify app ---------- */
+HELP = {
+  t: null, pollT: null, status: null,
+  base(){ return (settings.helper?.url || '').replace(/\/+$/, ''); },
+  async call(method, path, body){
+    if (!settings.helper) throw new Error('Set up background playback in ⚙ Settings first.');
+    let r;
+    try { r = await fetch(this.base() + path, {method, headers:{Authorization:'Bearer ' + settings.helper.key, 'Content-Type':'application/json'}, body: body ? JSON.stringify(body) : undefined}); }
+    catch { throw new Error('Could not reach your helper. Check the helper address in ⚙ Settings.'); }
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || ('Helper error ' + r.status));
+    return j;
+  },
+  sync(){
+    return this.call('PUT', '/library', {lead:settings.bgLeadMs, tracks: library.filter(t => t.source === 'spotify')
+      .map(t => ({uri:t.ref, title:t.title, dur:t.durationMs, segs:(t.segments || []).map(s => ({start:Math.round(s.start), end:Math.round(s.end)}))}))});
+  },
+  syncSoon(){ clearTimeout(this.t); if (settings.helper) this.t = setTimeout(() => this.sync().catch(e => console.warn(e.message)), 1500); },
+  on(){ return !!(settings.helper && settings.useHelper); },
+  async playFrom(libIdx){
+    let order = library.map((_, i) => i).filter(i => library[i].source === 'spotify');
+    if (!order.length) return toast('Background playback works with Spotify songs only.', true);
+    let first = order.includes(libIdx) ? libIdx : order[0];
+    if (settings.shuffle){ order = order.filter(i => i !== first); for (let i = order.length - 1; i > 0; i--){ const j = Math.floor(Math.random() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; } order.unshift(first); }
+    const skipped = library.length - library.filter(t => t.source === 'spotify').length;
+    if (Player.engine) Player.stop();
+    try {
+      await this.sync();
+      await this.call('POST', '/play', {uris:order.map(i => library[i].ref), index:order.indexOf(first), loop:settings.loop});
+      toast('Playing in your Spotify app. You can lock your phone now.' + (skipped ? ` ${skipped} YouTube song${skipped > 1 ? 's were' : ' was'} left out, because YouTube can't play in the background.` : ''));
+      this.poll(true);
+    } catch (e){ toast(e.message, true); }
+  },
+  async cmd(path){ try { await this.call('POST', path); this.poll(true); } catch (e){ toast(e.message, true); } },
+  // keep the mini player showing what the Spotify app is playing
+  async poll(soon){
+    clearTimeout(this.pollT);
+    if (!this.on()) return;
+    if (soon){ this.pollT = setTimeout(() => this.poll(), 1200); return; }
+    if (!document.hidden){
+      try {
+        const st = this.status = await this.call('GET', '/status');
+        $('#bp-title').textContent = st.now?.title ? st.now.title + ' (Spotify app)' : 'Nothing playing in the Spotify app';
+        $('#bp-play').textContent = st.active && st.now && !st.now.paused ? '⏸' : '▶';
+        if (st.error && st.error !== this.lastErr) toast(st.error, true);
+        this.lastErr = st.error;
+      } catch {}
+    }
+    this.pollT = setTimeout(() => this.poll(), 4000);
+  },
+  async refreshSettings(){
+    const el = $('#helper-status'), h = settings.helper;
+    $('#helper-url').value = h?.url || $('#helper-url').value;
+    ['helper-login', 'helper-pair', 'helper-forget'].forEach(id => $('#' + id).disabled = !h);
+    $('#bg-lead').value = settings.bgLeadMs; $('#bg-lead-val').textContent = settings.bgLeadMs + ' ms';
+    if (!h){ el.textContent = 'Not set up. Paste your helper address and press Set up.'; return; }
+    el.textContent = 'Checking…';
+    try {
+      const st = await this.call('GET', '/status');
+      el.innerHTML = st.connected ? `✅ Connected to Spotify · ${st.songs} song${st.songs === 1 ? '' : 's'} synced. On your phone, open the link from <b>Link for your phone</b> once.`
+        : `Set up, but not connected to Spotify yet. First add <code>${esc(this.base())}/callback</code> to your Spotify app's Redirect URIs, then press <b>Connect helper to Spotify</b>.`;
+    } catch (e){ el.textContent = '⚠️ ' + e.message; }
+  }
+};
+function renderHelperToggle(){
+  $('#tg-helper').hidden = !settings.helper;
+  $('#tg-helper').classList.toggle('on', HELP.on());
+}
+$('#tg-helper').onclick = () => {
+  settings.useHelper = !settings.useHelper; saveSettings(); renderHelperToggle();
+  if (HELP.on()){ HELP.sync().catch(() => {}); HELP.poll(); toast('▶ now plays in the Spotify app on your phone.'); }
+  else { clearTimeout(HELP.pollT); renderNow(); toast('▶ now plays here in the browser.'); }
+};
+$('#helper-setup').onclick = async () => {
+  const url = $('#helper-url').value.trim().replace(/\/+$/, '');
+  if (!/^https:\/\/[^/]+$/.test(url)) return toast('Paste the helper address, like https://songsnip-helper.yourname.workers.dev', true);
+  const key = randStr(40);
+  try {
+    const r = await fetch(url + '/claim', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({key})});
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || ('Helper error ' + r.status));
+    settings.helper = {url, key}; saveSettings(); renderHelperToggle(); HELP.refreshSettings();
+    toast('Helper set up. Next: connect it to Spotify.');
+  } catch (e){ toast(/fetch/i.test(e.message) ? 'Could not reach that address. Check it and try again.' : e.message, true); }
+};
+$('#helper-login').onclick = () => {
+  if (!settings.clientId) return toast('Add your Spotify Client ID above first.', true);
+  location.href = HELP.base() + '/login?' + new URLSearchParams({key:settings.helper.key, client_id:settings.clientId, return:location.origin + location.pathname});
+};
+$('#helper-pair').onclick = async () => {
+  const link = location.origin + location.pathname + '#pair=' + b64url(new TextEncoder().encode(JSON.stringify({u:settings.helper.url, k:settings.helper.key})));
+  try { await navigator.clipboard.writeText(link); toast('Link copied. Send it to your phone (for example in a note to yourself) and open it there once.'); }
+  catch { prompt('Copy this link and open it once on your phone:', link); }
+};
+$('#helper-forget').onclick = () => {
+  if (!confirm('Forget the helper on this device? (The helper itself keeps running; you can pair again with the phone link.)')) return;
+  settings.helper = null; settings.useHelper = false; saveSettings(); renderHelperToggle(); HELP.refreshSettings();
+};
+$('#bg-lead').oninput = e => { settings.bgLeadMs = +e.target.value; $('#bg-lead-val').textContent = settings.bgLeadMs + ' ms'; saveSettings(); HELP.syncSoon(); };
+// opening the phone link: remember the helper on this device and switch ▶ to the Spotify app
+(function pairFromLink(){
+  const m = location.hash.match(/^#pair=([\w-]+)$/); if (!m) return;
+  history.replaceState(null, '', location.pathname + location.search);
+  try {
+    const j = JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(m[1].replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0))));
+    if (!/^https:\/\//.test(j.u) || typeof j.k !== 'string') throw 0;
+    settings.helper = {url:j.u, key:j.k}; settings.useHelper = true; saveSettings();
+    setTimeout(() => toast('Paired with your helper. ▶ now plays in the Spotify app, and keeps going with your phone locked.'), 300);
+  } catch { setTimeout(() => toast('That pairing link is broken. Make a new one in ⚙ Settings on your computer.', true), 300); }
+})();
 $('#settings-close').onclick = () => { settings.clientId = $('#client-id').value.trim(); saveSettings(); $('#settings').close(); renderConn(); };
 
 $('#settings-connect').onclick = () => { settings.clientId = $('#client-id').value.trim(); saveSettings(); if (!settings.clientId) return toast('Paste your Client ID first', true); SP.login(); };
@@ -1188,6 +1317,8 @@ document.addEventListener('pointerdown', () => SP.activate());
 (async function boot(){
   renderConn(); renderSearchHint(); renderToggles(); renderLibrary(); renderNow();
   if (restoredYT.length) toast(`Restored ${restoredYT.length} YouTube song${restoredYT.length > 1 ? 's' : ''} you had trimmed before.`);
+  renderHelperToggle(); if (HELP.on()) HELP.poll();
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && HELP.on()) HELP.poll(); });
   await SP.handleRedirect();
   if (SP.tokens) SP.initSDK();
   if (library.some(t => t.source === 'youtube')) warmYT();

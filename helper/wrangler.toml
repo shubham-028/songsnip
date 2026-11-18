@@ -1,0 +1,17 @@
+# SongSnip background helper: deployed to your own Cloudflare account.
+name = "songsnip-helper"
+main = "src/index.js"
+compatibility_date = "2025-09-01"
+workers_dev = true
+
+[vars]
+# SongSnip pages allowed to talk to this helper
+ALLOWED_ORIGINS = "https://shubham-028.github.io,http://127.0.0.1:8888"
+
+[[durable_objects.bindings]]
+name = "HELPER"
+class_name = "Helper"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Helper"]
