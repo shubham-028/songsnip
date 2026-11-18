@@ -448,7 +448,7 @@ function makeYouTubeEngine(slot){
           playerVars:{playsinline:1, rel:0, origin:location.origin},
           events:{
             onReady: () => res(),
-            onStateChange: ev => { if (ev.data === 1) e.started = true; if (ev.data === 0 && Player.engine === e) Player.onEnded(); },
+            onStateChange: ev => { if (ev.data === 1) e.started = e.everPlayed = true; if (ev.data === 0 && Player.engine === e) Player.onEnded(); },
             onError: ev => {
               if (Player.engine !== e) return;
               const why = [101, 150].includes(ev.data) ? 'the owner does not allow this video to play on other websites. Try the same song from its "Artist - Topic" channel or a lyric video.'
@@ -474,7 +474,7 @@ function makeYouTubeEngine(slot){
     seek(ms){ this.player?.seekTo(Math.max(0, ms) / 1000, true); },
     position(){ return (this.player?.getCurrentTime?.() || 0) * 1000; },
     // until the video has really started (after any ad), count it as paused, so part tracking doesn't act on it
-    paused(){ const st = this.player?.getPlayerState?.(); if (st === 1) this.started = true; return !this.started || (st !== 1 && st !== 3); },
+    paused(){ const st = this.player?.getPlayerState?.(); if (st === 1) this.started = this.everPlayed = true; return !this.started || (st !== 1 && st !== 3); },
     duration(){ return (this.player?.getDuration?.() || 0) * 1000; },
     setVolume(v){ this.player?.setVolume?.(Math.round(clamp(v, 0, 1) * 100)); },
     stop(){ try { this.player?.pauseVideo(); } catch {} },
@@ -699,11 +699,14 @@ const Player = {
       // where does this song go next, and can the two overlap?
       const nq = last ? this.nextQ() : -1, nextT = nq >= 0 ? library[this.queue[nq]] : null;
       const blendMs = settings.blendOn && nextT ? settings.blendSec * 1000 : 0;
-      const bothSpotify = blendMs && this.track.source === 'spotify' && nextT.source === 'spotify';
+      // Songs can overlap unless both are Spotify (one stream per account), or the next one needs a YouTube player
+      // that hasn't played yet (browsers only let a YouTube player start by itself after you've tapped it once).
+      const target = nextT ? this.engineFor(nextT, this.engine) : null;
+      const bothSpotify = blendMs && (target === this.engine || (isYT(target) && !target.everPlayed));   // "can't overlap": fade out, then in
       if (blendMs && !bothSpotify && !this.out && pos >= seg.end - blendMs - this.loadEst[nextT.source]){ this.startBlend(nq); return; }
       // between parts of a YouTube song: overlap on the second player (if the part is long enough to set it up)
       const partBlendMs = settings.blendOn && this.track.fade && !last ? settings.partBlendSec * 1000 : 0;
-      if (partBlendMs && isYT(this.engine) && !this.out){
+      if (partBlendMs && isYT(this.engine) && (this.engine === YTA ? YTB : YTA).everPlayed && !this.out){
         const trig = seg.end - partBlendMs - this.loadEst.youtube;
         if (trig > seg.start + 500 && pos >= trig && pos < seg.end){ this.startPartBlend(partBlendMs); return; }
       }
@@ -723,7 +726,7 @@ const Player = {
       }
       // jump early to hide the seek delay (Join timing); between two Spotify songs, start the next one loading
       // a little early so the gap is as short as possible. The last fraction of a second uses a precise timer.
-      const jumpAt = seg.end - (!last ? settings.leadMs : bothSpotify ? Math.min(this.loadEst.spotify * 0.6, 700) : 0);
+      const jumpAt = seg.end - (!last ? settings.leadMs : bothSpotify ? Math.min(this.loadEst[nextT.source] * 0.6, 700) : 0);
       const go = () => { if (bothSpotify) this.pendingFadeIn = blendMs / 2; this.advanceSeg(); };
       if (pos >= jumpAt) go();
       else if (jumpAt - pos < 250 && this.jumpKey !== key){
@@ -812,9 +815,9 @@ function renderProgress(pos){
     $('#yt-card .pp').textContent = paused ? '▶' : '⏸';
     const [a, z] = Player.clock(pos), n = Player.mode === 'queue' ? Player.segs.length : 0;
     const e = Player.engine, waiting = isYT(e) && !e.started && !Player.busy, slow = waiting && performance.now() - e.loadedAt > 6000;
-    $('#yt-time').textContent = waiting ? (slow ? 'Not started yet. Tap ▶ on the video to start it.' : 'Starting…')
+    $('#yt-time').textContent = waiting ? (slow ? 'Tap ▶ on the video to start it (needed once after opening SongSnip).' : 'Starting…')
       : `${fmt(a, false)} / ${fmt(z, false)}` + (n > 1 ? ` · part ${Player.segIdx + 1} of ${n}` : '');
-    if (slow && !e.nagged && e.player?.getPlayerState?.() !== 3){ e.nagged = true; toast('YouTube is waiting for you: tap ▶ on the video to start it. Your browser may have blocked it from starting by itself.'); }
+    if (slow && !e.nagged && e.player?.getPlayerState?.() !== 3){ e.nagged = true; toast('Tap ▶ on the video once. Chrome only lets a YouTube video start by itself after you have tapped it, so after this one, YouTube songs will start on their own until you reload the page.'); }
   }
   const mini = document.querySelector(`.tl.mini[data-id="${t.id}"]`); if (mini) renderTimeline(mini, t, pos, false);
   if (Player.busy) return;
